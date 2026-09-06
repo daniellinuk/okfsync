@@ -41,8 +41,8 @@ Bun is the monorepo package manager for scripts and workspaces. The product CLI 
 # Rust CLI
 cargo test --manifest-path cli/Cargo.toml
 cargo build --release --manifest-path cli/Cargo.toml
-cargo clippy --manifest-path cli/Cargo.toml --all-targets -- -D warnings
-cargo fmt --manifest-path cli/Cargo.toml -- --check
+cargo clippy --manifest-path cli/Cargo.toml --locked --all-targets -- -D warnings
+cargo fmt --manifest-path cli/Cargo.toml   # optional; rustfmt.toml present, CI gates on clippy not fmt
 
 # Monorepo (Bun)
 bun install
