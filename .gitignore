@@ -1,0 +1,12 @@
+target/
+**/target/
+node_modules/
+npm/vendor/
+.DS_Store
+*.swp
+.env
+.bagsy/locks/*.lock
+!template/.bagsy/locks/.gitkeep
+dist/
+.turbo/
+*.log

@@ -1,0 +1,25 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "bagsy-monorepo",
+    },
+    "npm": {
+      "name": "bagsy",
+      "version": "0.1.0",
+      "bin": {
+        "bagsy": "bin/bagsy.js",
+      },
+    },
+    "template": {
+      "name": "@bagsy/template",
+      "version": "0.1.0",
+    },
+  },
+  "packages": {
+    "@bagsy/template": ["@bagsy/template@workspace:template"],
+
+    "bagsy": ["bagsy@workspace:npm"],
+  }
+}

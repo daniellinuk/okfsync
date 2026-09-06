@@ -1,0 +1,20 @@
+{
+  "name": "bagsy-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Bagsy a concept so your agents don't clobber the brain.",
+  "workspaces": ["npm", "template"],
+  "scripts": {
+    "build:cli": "cargo build --release --manifest-path cli/Cargo.toml",
+    "test": "bun run test:cli && bun run test:npm && bun run test:template",
+    "test:cli": "cargo test --manifest-path cli/Cargo.toml",
+    "test:npm": "cd npm && BAGSY_SKIP_DOWNLOAD=1 npm test",
+    "test:template": "bun run build:cli && bun run --cwd template test",
+    "demo": "bun run build:cli && bun run --cwd template demo",
+    "lint": "bun run build:cli && bun run --cwd template lint"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "license": "MIT"
+}

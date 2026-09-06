@@ -1,0 +1,37 @@
+{
+  "name": "bagsy",
+  "version": "0.1.0",
+  "description": "Bagsy a concept so your agents don't clobber the brain. Prebuilt binary wrapper for the bagsy CLI.",
+  "license": "MIT",
+  "bin": {
+    "bagsy": "bin/bagsy.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node ./lib/install.js",
+    "test": "node --test ./lib/install.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bagsy-dev/bagsy.git",
+    "directory": "npm"
+  },
+  "keywords": [
+    "bagsy",
+    "okf",
+    "agents",
+    "cli",
+    "git"
+  ],
+  "optionalDependencies": {},
+  "publishConfig": {
+    "access": "public"
+  }
+}
