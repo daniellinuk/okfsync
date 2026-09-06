@@ -54,11 +54,6 @@ impl Config {
     pub fn lock_dir_path(&self, root: &Path) -> PathBuf {
         root.join(&self.lock_dir)
     }
-
-    pub fn is_protected_branch(&self, branch: &str) -> bool {
-        let b = branch.trim();
-        b == self.default_branch || b == "main" || b == "master"
-    }
 }
 
 /// Resolve the bagsy/OKF root: explicit flag, walk up for `.bagsy/`, or cwd.

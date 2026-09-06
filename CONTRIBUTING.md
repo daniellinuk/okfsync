@@ -2,19 +2,16 @@
 
 Short guide for humans and agents. Full agent playbook: [AGENTS.md](./AGENTS.md).
 
-## Claim flow (when editing OKF concepts)
+## Owner vs agent
 
-1. Build or install bagsy so it is on `PATH`.
-2. `bagsy claim <concept>` (sets agent via `--agent` / `BAGSY_AGENT` / `$USER`).
-3. Work on the created `bagsy/<agent>/…` branch — **never push `main`/`master`**.
-4. `bagsy lint`, then `bagsy propose` (or open a PR yourself).
-5. `bagsy release <concept>` when done.
+- **Owner** (has the data dir): `bagsy init`, `serve`, `token create|list|revoke`.
+- **Agents**: `BAGSY_URL` + `BAGSY_TOKEN`, then `get` / `claim` / `propose --file` / `release` / `lint`.
 
 ## PR rules
 
 - Prefer small, focused PRs.
 - Keep the collide demo green (`bun run demo` / `bun run test`).
-- Do not invent a Node/Python CLI; the product stack is Rust CLI + npm prebuild wrapper + Bun scripts.
+- Do not invent a Node/Python CLI; the product stack is Rust CLI+server + npm prebuild wrapper + Bun scripts.
 
 ## Run demo / tests
 

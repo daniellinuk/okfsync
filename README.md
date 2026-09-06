@@ -2,170 +2,135 @@
 
 **Bagsy a concept so your agents don't clobber the brain.**
 
-OSS CLI for agent-swarm shared memory on [git](https://git-scm.com)/[OKF](https://okf.md/spec/) — collision hygiene.
+OSS CLI for agent-swarm shared memory on [OKF](https://okf.md/spec/). One server holds the knowledge base. Agents never need the git repo — they call `bagsy` with a URL and a per-agent token.
 
-Workers `bagsy claim` a concept, write on a branch, open a PR/MR, and `bagsy lint`. **Never push `main`.**
+## Two roles (do not confuse them)
 
-## Two repos (do not confuse them)
+| Who | Runs | Needs |
+|-----|------|--------|
+| **KB owner** | `bagsy init`, `bagsy serve`, `bagsy token` | The data directory (OKF files + `.bagsy/`) |
+| **Agent** | `get` `claim` `propose` `release` `lint` | `BAGSY_URL` + `BAGSY_TOKEN` |
 
-| Repo | Role | Lives where |
-|------|------|-------------|
-| **This monorepo** | Tooling: CLI source, npm wrapper, toy template | Public (`cli/`, `npm/`, `template/`) |
-| **Your knowledge repo** | Private OKF markdown KB (the real brain) | Private git host; clone + run `bagsy` against it |
-
-`/template` is a **demo seed**, not the product KB. Dogfood and production memory live in a separate private knowledge repo that mirrors the same layout (`concepts/`, `.bagsy/locks/`).
+`/template` is a **demo seed**, not a production KB.
 
 ```
-/cli       Rust implementation of the bagsy CLI
-/npm       Prebuilt-binary wrapper (bun / npm / pnpm) — no PyPI
-/template  Minimal OKF concepts, locks, collide-then-recover demo + CI lint
+/cli       Rust CLI + server (`bagsy serve`)
+/npm       Prebuilt-binary wrapper (bun / npm / pnpm)
+/template  Minimal OKF concepts + collide-then-recover demo
 ```
 
 ## For review agents (read first)
 
 - **Canonical agent playbook:** [AGENTS.md](./AGENTS.md) (also linked as `CLAUDE.md`).
-- **Product:** bagsy = claim → branch → PR/MR → lint for multi-writer agent memory on git. Collision hygiene, not a hosted KB.
-- **Repo kind A — this monorepo:** review/edit `cli/` (Rust), `npm/` (wrapper), `template/` (demo + CI). SoT for the *tool*.
-- **Repo kind B — consumer knowledge repo:** private OKF concepts + locks. SoT for the *data*. Do not treat `template/` as that KB.
-- **Hard rule:** never push `main`/`master`. Workers open PRs/MRs from bagsy branches; lead/human merges.
-- **Hard rule:** claim before edit. No free-writes on concepts you did not bagsy.
-- **Hard rule:** do not hand-delete lock files under `.bagsy/locks/` — use `bagsy release`.
-- **Verify:** `bagsy lint` must stay green (OKF frontmatter + lock hygiene). Success = lint pass, locks consistent, no main pushes.
-- **Commands that matter:** `get` (read), `claim` (dibs + branch), `release` (drop lock), `propose` (push bagsy branch / PR hints; refuses protected branches), `lint` (CI gate).
-- **Agent id:** `--agent`, or `BAGSY_AGENT`, or `$USER`. Use a stable id per worker.
-- **Where to review code:** CLI behavior → `cli/`; install/binary resolution → `npm/`; demo layout + collide script → `template/`.
-- **OKF minimum bagsy cares about:** concept markdown under `concepts/` with YAML frontmatter `type` required; concept ids must be unique and match lock targets.
-- **Out of scope for reviewers of this monorepo:** inventing IAM, rewriting private KB content, or treating marketplace wrappers as required for MVP.
-
-## Who it is for
-
-- **Primary:** agents and agent swarms (lead recruits workers that share one OKF git KB).
-- **Secondary:** humans who review PRs/MRs — not wiki browsers.
+- **Product:** one `bagsy serve` process is the source of truth. File locks live on that host. Agents authenticate with per-agent bearer tokens the owner creates and revokes.
+- **Hard rule:** agents do not clone or push the KB. They talk HTTP.
+- **Hard rule:** claim before `propose`. Identity comes from the token, not `--agent`, when `BAGSY_URL` is set.
+- **Commands that matter:** `init` / `serve` / `token` (owner); `get` `claim` `propose --file` `release` `lint` (agents).
 
 ## Mental model
 
 | Piece | What it is |
 |-------|------------|
-| `concepts/*.md` | OKF concepts (YAML frontmatter + body). The shared brain. |
-| `.bagsy/locks/*.lock` | Claim locks (TOML). Who currently bagsied which concept. |
-| `bagsy/<agent>/<concept-slug>` | Worker branch created by `claim` (unless `--no-branch`). |
-| PR / MR | How changes land on `main`. Workers never push protected branches. |
-| `bagsy lint` | Gate: frontmatter `type`, concept ids, lock → concept consistency. |
+| `concepts/*.md` | OKF concepts (YAML frontmatter + body) on the **server disk** |
+| `.bagsy/locks/*.lock` | Who currently bagsied which concept (server-side) |
+| `.bagsy/tokens.toml` | Hashed per-agent tokens (owner-only; never the secret) |
+| `bagsy serve --bind …` | HTTP API (`/health`, `/v1/…`) |
+| `BAGSY_URL` + `BAGSY_TOKEN` | How an agent attaches |
 
-**Flow:** `get` → `claim` → edit on bagsy branch → `propose` (PR/MR) → `lint` green → lead merges → `release`.
+**Flow:** owner `init` + `token create` + `serve` → agent `get` → `claim` → edit a local copy → `propose --file` → `release`.
 
 ## CLI surface
 
+**Owner (on the machine with the data dir)**
+
 | Command | When to use |
 |---------|-------------|
-| `bagsy get <concept>` | Read a concept (no lock). Inspect before claiming. |
-| `bagsy claim <concept>` | Call dibs before writing. Writes a lock and (by default) checks out `bagsy/<agent>/…`. |
-| `bagsy release <concept>` | Done writing (or abort). Drops *your* lock so others can claim. |
-| `bagsy propose` | Ready to share work: refuse if on `main`/`master`; push your bagsy branch; print PR/MR hints. Use after claim + edits — not instead of claim. |
-| `bagsy lint` | Local or CI check that OKF + locks are consistent. Run before asking for merge. |
+| `bagsy init` | Create `concepts/`, `.bagsy/`, git if needed |
+| `bagsy serve` | Listen (default `127.0.0.1:7432`) |
+| `bagsy serve --bind 0.0.0.0:7432` | Reachable from other machines (put a proxy in front if you want OIDC/Tailscale) |
+| `bagsy token create --agent <id>` | Mint one token for one agent (printed once) |
+| `bagsy token list` | See ids / agents / active vs revoked |
+| `bagsy token revoke --agent <id>` | Cut off that agent |
+| `bagsy token revoke --id <id>` | Revoke one token |
+| `bagsy token create --agent <id> --rotate` | Replace that agent's active token |
 
-**Flags / identity**
+**Agents**
 
-| Flag / env | When to use |
-|------------|-------------|
-| `--agent` / `BAGSY_AGENT` | Stable worker id (else `$USER`). Required for clear multi-agent demos and lock ownership. |
-| `--no-branch` | Claim/lock without creating/switching branches — useful in the collide demo or when branch management is external. Default claim *does* open a bagsy branch for real work. |
+| Command | When to use |
+|---------|-------------|
+| `bagsy get <concept>` | Read (no lock) |
+| `bagsy claim <concept>` | Dibs. Fails if another agent holds it |
+| `bagsy propose <concept> --file <md>` | Write markdown; server commits on its clone |
+| `bagsy release <concept>` | Drop *your* lock (`--force` to steal) |
+| `bagsy lint` | OKF frontmatter + lock hygiene |
+
+`--url` / `BAGSY_URL` and `--token` / `BAGSY_TOKEN` select the server. Without them, `get`/`lint`/`claim`/`release`/`propose` operate on `--root` / `BAGSY_ROOT` (owner local mode).
+
+`--agent` / `BAGSY_AGENT` is only for local mode. In server mode the token **is** the agent.
+
+`serve --push` pushes `origin` after each propose. `--push-interval <secs>` also pushes on a timer. Hosting (localhost, Tailscale, Docker) is the operator's choice — bagsy only needs a reachable bind address and a writable data dir.
 
 ## How an agent should work
 
-### A) Toy template (this monorepo)
+```bash
+export BAGSY_URL=http://127.0.0.1:7432
+export BAGSY_TOKEN=bgy_…          # from the owner
 
-1. Build CLI; put it on `PATH`.
-2. Work inside `template/` (seed concepts + locks).
-3. Run the collide demo (`bun run demo` or hand steps below).
-4. Confirm `bagsy lint` stays green.
-
-### B) Real private knowledge repo
-
-1. Clone the **private** OKF KB (not this monorepo's `template/`).
-2. Install `bagsy` (global or from this monorepo's release binary).
-3. Set `BAGSY_AGENT` to your worker id.
-4. `bagsy get <concept>` — read first.
-5. `bagsy claim <concept>` — lock + bagsy branch (omit `--no-branch` for real work).
-6. Edit only claimed concept files; keep link edges append-only where possible.
-7. `bagsy lint` — fix until green.
-8. `bagsy propose` — push bagsy branch; open PR/MR. **Never push `main`.**
-9. After merge (or abandon): `bagsy release <concept>`.
+bagsy get brain
+bagsy claim brain
+# edit a local markdown file
+bagsy propose brain --file ./brain.md
+bagsy lint
+bagsy release brain
+```
 
 ## Install
 
 ### From this monorepo (dev)
 
 ```bash
-# Rust CLI
 cargo build --release --manifest-path cli/Cargo.toml
 export PATH="$PWD/cli/target/release:$PATH"
 bagsy --help
-
-# Or via the npm wrapper (resolves the local release binary)
-cd npm && npm install && cd ..
-node npm/bin/bagsy.js --help
 ```
 
 ### Via bun / npm / pnpm (prebuilt binary)
 
 ```bash
 bun add -g bagsy
-# npm i -g bagsy
-# pnpm add -g bagsy
-
 bagsy --help
 ```
 
-The npm package ships a small Node wrapper. On install it looks for a platform binary (`BAGSY_BIN`, optional `bagsy-<os>-<arch>` package, GitHub Release asset, or a monorepo `cli/target/*/bagsy` build).
+The npm package is a wrapper around the native binary (`BAGSY_BIN`, GitHub Release, or a local `cli/target` build).
+
+## Owner: local server (5 minutes)
+
+```bash
+bagsy init --root ./my-kb
+bagsy token create --agent agent-a --root ./my-kb
+bagsy token create --agent agent-b --root ./my-kb
+bagsy serve --root ./my-kb
+# other terminals: BAGSY_URL=http://127.0.0.1:7432 BAGSY_TOKEN=… bagsy claim brain
+```
 
 ## 5-minute two-agent collide demo
 
-Two agents fight over `concepts/brain.md`. The second claim fails; release + reclaim recovers. Lint stays green.
+Two agents fight over `concepts/brain.md`. The second claim fails; release + reclaim recovers.
 
 ```bash
-# 0) build once
 cargo build --release --manifest-path cli/Cargo.toml
 export PATH="$PWD/cli/target/release:$PATH"
-
-# 1) one-shot demo (Bun)
 bun install
 bun run demo
 ```
 
-Or walk it by hand inside `/template`:
-
-```bash
-cd template
-git init -b main && git add . && git commit -m "seed"
-
-# Agent A bagsies the brain
-BAGSY_AGENT=agent-a bagsy claim brain
-# → lock written, on branch bagsy/agent-a/concepts-brain
-
-# Agent B collides
-BAGSY_AGENT=agent-b bagsy claim brain --no-branch
-# → error: already bagsied by agent-a
-
-# Recover
-BAGSY_AGENT=agent-a bagsy release brain
-BAGSY_AGENT=agent-b bagsy claim brain --no-branch
-# → bagsied
-
-bagsy lint
-BAGSY_AGENT=agent-b bagsy release brain
-```
-
-`bagsy propose` will refuse if you are on `main`/`master` — workers open a PR/MR from their bagsy branch instead.
-
 ## What NOT to do
 
-- Free-write concepts on `main` / `master`.
-- Edit a concept without `bagsy claim`.
-- Hand-delete or hand-edit files under `.bagsy/locks/` — use `bagsy release`.
-- Push `main`/`master` from a worker agent.
+- Give agents git access to the KB instead of a token.
+- Share one token across agents if you want revoke-per-agent.
+- Bind `0.0.0.0` with no tokens.
+- Skip `bagsy claim` before `propose`.
 - Treat `/template` as your production knowledge base.
-- Skip `bagsy lint` before asking for merge.
 
 ## Develop
 
@@ -180,7 +145,6 @@ bun run test            # all
 ## Design notes (MVP)
 
 - OKF concepts are plain markdown + YAML frontmatter (`type` required).
-- Locks are TOML under `.bagsy/locks/`.
-- Claims create `bagsy/<agent>/<concept-slug>` branches.
-- `propose` never pushes `main`/`master`.
-- No framework, no database, no PyPI — just git + files + a small CLI.
+- One process (`bagsy serve`) owns the working tree, locks, and git commits.
+- Tokens are random secrets; only SHA-256 hashes are stored.
+- No framework, no database — git + files + a small HTTP API.

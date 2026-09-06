@@ -2,7 +2,7 @@
 name = "bagsy"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.85"
 description = "Bagsy a concept so your agents don't clobber the brain."
 license = "MIT"
 repository = "https://github.com/bagsy-dev/bagsy"
@@ -15,14 +15,18 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 clap = { version = "4", features = ["derive", "env"] }
+hex = "0.4"
+rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "net"] }
 toml = "0.8"
-regex = "1"
-thiserror = "2"
+ureq = { version = "2", features = ["json"] }
 walkdir = "2"
 
 [dev-dependencies]

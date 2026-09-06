@@ -70,6 +70,28 @@ pub fn read_concept(root: &Path, concept: &str) -> Result<Concept> {
     })
 }
 
+/// Write a full markdown document after validating OKF frontmatter.
+pub fn write_concept_markdown(root: &Path, concept: &str, markdown: &str) -> Result<Concept> {
+    let rel = normalize_concept_path(concept);
+    let (frontmatter, body) = parse_frontmatter(markdown)
+        .with_context(|| format!("invalid OKF concept {rel}"))?;
+    let path = root.join(&rel);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    let mut text = markdown.to_string();
+    if !text.ends_with('\n') {
+        text.push('\n');
+    }
+    fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+    Ok(Concept {
+        rel,
+        frontmatter,
+        body,
+    })
+}
+
 pub fn list_concepts(root: &Path) -> Result<Vec<PathBuf>> {
     let concepts_dir = root.join("concepts");
     if !concepts_dir.is_dir() {

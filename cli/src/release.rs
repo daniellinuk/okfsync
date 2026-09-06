@@ -1,19 +1,16 @@
 use anyhow::{bail, Result};
 use std::path::Path;
 
-use crate::config::{self, Config};
+use crate::config::Config;
 use crate::lock;
 
-pub fn run(root: &Path, concept: &str, agent: Option<&str>, force: bool) -> Result<()> {
+pub fn run(root: &Path, concept: &str, agent: &str, force: bool) -> Result<()> {
     let cfg = Config::load(root)?;
-    let agent = config::default_agent(agent);
     let rel = lock::normalize_concept(concept);
     let path = lock::lock_path(root, &cfg, &rel);
 
     match lock::read_lock(&path)? {
-        None => {
-            bail!("no lock found for '{rel}'");
-        }
+        None => bail!("no lock found for '{rel}'"),
         Some(existing) => {
             if existing.agent != agent && !force {
                 bail!(
