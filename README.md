@@ -23,6 +23,7 @@ Workers `bagsy claim` a concept, write on a branch, open a PR/MR, and `bagsy lin
 
 ## For review agents (read first)
 
+- **Canonical agent playbook:** [AGENTS.md](./AGENTS.md) (also linked as `CLAUDE.md`).
 - **Product:** bagsy = claim → branch → PR/MR → lint for multi-writer agent memory on git. Collision hygiene, not a hosted KB.
 - **Repo kind A — this monorepo:** review/edit `cli/` (Rust), `npm/` (wrapper), `template/` (demo + CI). SoT for the *tool*.
 - **Repo kind B — consumer knowledge repo:** private OKF concepts + locks. SoT for the *data*. Do not treat `template/` as that KB.
