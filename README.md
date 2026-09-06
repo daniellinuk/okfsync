@@ -4,6 +4,8 @@
 
 OSS CLI for agent-swarm shared memory on [git](https://git-scm.com)/[OKF](https://okf.md/spec/) — collision hygiene.
 
+Coding agents: start at [AGENTS.md](./AGENTS.md) (also linked as `CLAUDE.md`).
+
 Workers `bagsy claim` a concept, write on a branch, open a PR/MR, and `bagsy lint`. **Never push `main`.**
 
 ```
