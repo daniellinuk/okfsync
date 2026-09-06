@@ -1,7 +1,8 @@
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
@@ -58,6 +59,28 @@ pub fn write_lock(path: &Path, lock: &Lock) -> Result<()> {
     Ok(())
 }
 
+/// Create a lock file only if it does not already exist (`O_EXCL`).
+pub fn write_lock_exclusive(path: &Path, lock: &Lock) -> Result<bool> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating lock dir {}", parent.display()))?;
+    }
+    let text = toml::to_string_pretty(lock).context("serializing lock")?;
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut f) => {
+            f.write_all(text.as_bytes())
+                .with_context(|| format!("writing lock {}", path.display()))?;
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(e) => Err(e).with_context(|| format!("creating lock {}", path.display())),
+    }
+}
+
 pub fn remove_lock(path: &Path) -> Result<()> {
     if path.exists() {
         fs::remove_file(path).with_context(|| format!("removing lock {}", path.display()))?;
@@ -85,29 +108,32 @@ pub fn list_locks(root: &Path, cfg: &Config) -> Result<Vec<(PathBuf, Lock)>> {
     Ok(out)
 }
 
-pub fn ensure_claimable(root: &Path, cfg: &Config, concept: &str, agent: &str) -> Result<()> {
-    let path = lock_path(root, cfg, concept);
-    if let Some(existing) = read_lock(&path)? {
-        if existing.agent != agent {
-            bail!(
-                "concept '{}' is already bagsied by agent '{}' on branch '{}' (claimed {})",
-                existing.concept,
-                existing.agent,
-                existing.branch,
-                existing.claimed_at.to_rfc3339()
-            );
+/// Atomically claim a concept. Same agent re-claim is idempotent.
+pub fn try_claim(root: &Path, cfg: &Config, concept: &str, agent: &str) -> Result<Lock> {
+    let rel = normalize_concept(concept);
+    let path = lock_path(root, cfg, &rel);
+    let branch = "serve".to_string();
+    let claim = Lock::new(&rel, agent, &branch);
+
+    match write_lock_exclusive(&path, &claim)? {
+        true => Ok(claim),
+        false => {
+            match read_lock(&path)? {
+                Some(existing) if existing.agent == agent => {
+                    write_lock(&path, &claim)?;
+                    Ok(claim)
+                }
+                Some(existing) => bail!(
+                    "concept '{}' is already bagsied by agent '{}' (claimed {})",
+                    existing.concept,
+                    existing.agent,
+                    existing.claimed_at.to_rfc3339()
+                ),
+                None => {
+                    write_lock(&path, &claim)?;
+                    Ok(claim)
+                }
+            }
         }
     }
-    Ok(())
-}
-
-pub fn branch_name(agent: &str, concept: &str) -> String {
-    let slug = normalize_concept(concept)
-        .trim_end_matches(".md")
-        .replace('/', "-");
-    let agent_slug = agent
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
-        .collect::<String>();
-    format!("bagsy/{agent_slug}/{slug}")
 }

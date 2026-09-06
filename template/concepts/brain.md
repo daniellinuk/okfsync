@@ -16,6 +16,6 @@ edit on their `bagsy/<agent>/…` branch, then `bagsy propose`. Never push `main
 
 ## Invariants
 
-- One writer at a time (enforced by `.bagsy/locks`).
-- Changes land via PR/MR only.
-- `bagsy lint` must stay green on the default branch.
+- One writer at a time (enforced by `bagsy serve` locks).
+- Agents authenticate with a per-agent token; they do not push git.
+- `bagsy lint` must stay green.

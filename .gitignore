@@ -6,6 +6,7 @@ npm/vendor/
 *.swp
 .env
 .bagsy/locks/*.lock
+.bagsy/tokens.toml
 !template/.bagsy/locks/.gitkeep
 dist/
 .turbo/

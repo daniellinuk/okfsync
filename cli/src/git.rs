@@ -30,19 +30,6 @@ pub fn current_branch(root: &Path) -> Result<String> {
     run_git_ok(root, &["rev-parse", "--abbrev-ref", "HEAD"])
 }
 
-pub fn create_and_checkout_branch(root: &Path, branch: &str) -> Result<()> {
-    // If branch exists locally, check it out; else create from HEAD
-    let exists = run_git(root, &["rev-parse", "--verify", branch])?
-        .status
-        .success();
-    if exists {
-        run_git_ok(root, &["checkout", branch])?;
-    } else {
-        run_git_ok(root, &["checkout", "-b", branch])?;
-    }
-    Ok(())
-}
-
 pub fn push_branch(root: &Path, branch: &str, force_with_lease: bool) -> Result<()> {
     if force_with_lease {
         run_git_ok(root, &["push", "--force-with-lease", "-u", "origin", branch])?;
@@ -62,19 +49,36 @@ pub fn status_porcelain(root: &Path) -> Result<String> {
     run_git_ok(root, &["status", "--porcelain"])
 }
 
-pub fn find_git_toplevel(start: &Path) -> Option<std::path::PathBuf> {
+pub fn commit_paths(root: &Path, paths: &[&Path], message: &str, agent: &str) -> Result<bool> {
+    if !is_git_repo(root) {
+        return Ok(false);
+    }
+    for p in paths {
+        let rel = p.strip_prefix(root).unwrap_or(p);
+        let rel_s = rel.to_string_lossy().into_owned();
+        run_git_ok(root, &["add", "--", &rel_s])?;
+    }
+    let status = status_porcelain(root)?;
+    if status.is_empty() {
+        return Ok(false);
+    }
     let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .current_dir(start)
+        .args(["commit", "-m", message])
+        .current_dir(root)
+        .env("GIT_AUTHOR_NAME", agent)
+        .env("GIT_AUTHOR_EMAIL", format!("{agent}@bagsy.local"))
+        .env("GIT_COMMITTER_NAME", agent)
+        .env("GIT_COMMITTER_EMAIL", format!("{agent}@bagsy.local"))
         .output()
-        .ok()?;
+        .context("git commit")?;
     if !output.status.success() {
-        return None;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git commit failed: {}", stderr.trim());
     }
-    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if s.is_empty() {
-        None
-    } else {
-        Some(std::path::PathBuf::from(s))
-    }
+    Ok(true)
+}
+
+pub fn push_head(root: &Path) -> Result<()> {
+    let branch = current_branch(root)?;
+    push_branch(root, &branch, false)
 }
