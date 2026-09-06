@@ -14,4 +14,5 @@ The only required frontmatter field is `type`.
 
 Optional: `title`, `description`, `tags`, `resource`, `timestamp`.
 
-Locks for bagsy collision hygiene live in `.bagsy/locks/` (not part of OKF itself).
+bagsy will not delete concepts via the CLI. Git on the server is history.
+

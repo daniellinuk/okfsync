@@ -5,9 +5,7 @@ npm/vendor/
 .DS_Store
 *.swp
 .env
-.bagsy/locks/*.lock
 .bagsy/tokens.toml
-!template/.bagsy/locks/.gitkeep
 dist/
 .turbo/
 *.log

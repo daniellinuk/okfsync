@@ -2,38 +2,34 @@ use anyhow::{bail, Result};
 use std::fs;
 use std::path::Path;
 
+use crate::config::Config;
 use crate::git;
 
 const SAMPLE_BRAIN: &str = r#"---
 type: Playbook
 title: Shared Brain
-description: Claim before you write.
+description: Get, then propose. History lives in git on the server.
 tags:
   - core
 ---
 
 # Shared Brain
 
-Seed concept. Agents `bagsy get` / `claim` / `propose` / `release` through the server.
+Seed concept. Agents `bagsy get` then `bagsy propose --file`. The CLI cannot delete.
 "#;
 
 const CONFIG: &str = r#"# bagsy knowledge root
 default_branch = "main"
-lock_dir = ".bagsy/locks"
 knowledge_root = "."
 "#;
 
 pub fn run(root: &Path) -> Result<()> {
-    fs::create_dir_all(root.join(".bagsy/locks"))?;
+    fs::create_dir_all(root.join(".bagsy"))?;
     fs::create_dir_all(root.join("concepts"))?;
 
     let cfg = root.join(".bagsy/config.toml");
     if !cfg.exists() {
         fs::write(&cfg, CONFIG)?;
-    }
-    let gitkeep = root.join(".bagsy/locks/.gitkeep");
-    if !gitkeep.exists() {
-        fs::write(&gitkeep, "")?;
     }
     let tokens = root.join(".bagsy/tokens.toml");
     if !tokens.exists() {
@@ -51,7 +47,8 @@ pub fn run(root: &Path) -> Result<()> {
     }
 
     if !git::is_git_repo(root) {
-        git::run_git_ok(root, &["init", "-b", "main"])?;
+        let cfg = Config::load(root)?;
+        git::run_git_ok(root, &["init", "-b", &cfg.default_branch])?;
         let _ = git::run_git_ok(root, &["config", "user.email", "bagsy@localhost"]);
         let _ = git::run_git_ok(root, &["config", "user.name", "bagsy"]);
         git::run_git_ok(root, &["add", "."])?;
@@ -64,7 +61,10 @@ pub fn run(root: &Path) -> Result<()> {
 
     println!("initialized bagsy KB at {}", root.display());
     println!("next:");
-    println!("  bagsy token create --agent <id> --root {}", root.display());
+    println!(
+        "  bagsy token create --agent <id> --root {}",
+        root.display()
+    );
     println!("  bagsy serve --root {}", root.display());
     Ok(())
 }

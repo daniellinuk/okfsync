@@ -3,10 +3,7 @@
 use anyhow::{bail, Context, Result};
 use ureq::Error as UreqError;
 
-use crate::api::{
-    ClaimRequest, ClaimResponse, ConceptResponse, ErrorBody, LintResponse,
-    ProposeRequest, ProposeResponse, ReleaseRequest, ReleaseResponse,
-};
+use crate::api::{ConceptResponse, ErrorBody, LintResponse, ProposeRequest, ProposeResponse};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -31,25 +28,6 @@ impl Remote {
             self.auth(ureq::get(&format!("{}/v1/concepts", self.url)))
                 .query("path", concept)
                 .call(),
-        )
-    }
-
-    pub fn claim(&self, concept: &str) -> Result<ClaimResponse> {
-        read_json(
-            self.auth(ureq::post(&format!("{}/v1/claims", self.url)))
-                .send_json(ClaimRequest {
-                    concept: concept.to_string(),
-                }),
-        )
-    }
-
-    pub fn release(&self, concept: &str, force: bool) -> Result<ReleaseResponse> {
-        read_json(
-            self.auth(ureq::post(&format!("{}/v1/releases", self.url)))
-                .send_json(ReleaseRequest {
-                    concept: concept.to_string(),
-                    force,
-                }),
         )
     }
 
@@ -91,20 +69,23 @@ pub fn from_opts(url: Option<&str>, token: Option<&str>) -> Result<Option<Remote
 }
 
 fn nonempty(v: Option<&str>) -> Option<String> {
-    v.map(str::trim).filter(|s| !s.is_empty()).map(|s| s.to_string())
+    v.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 fn nonempty_env(key: &str) -> Option<String> {
-    std::env::var(key).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    std::env::var(key)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(
     result: std::result::Result<ureq::Response, UreqError>,
 ) -> Result<T> {
     match result {
-        Ok(resp) => resp
-            .into_json()
-            .context("decoding bagsy server JSON"),
+        Ok(resp) => resp.into_json().context("decoding bagsy server JSON"),
         Err(UreqError::Status(_code, resp)) => {
             let msg = resp
                 .into_json::<ErrorBody>()

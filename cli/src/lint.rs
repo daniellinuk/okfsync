@@ -2,12 +2,9 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::api::LintResponse;
-use crate::config::Config;
-use crate::lock;
 use crate::okf;
 
 pub fn collect(root: &Path) -> Result<LintResponse> {
-    let cfg = Config::load(root)?;
     let mut out = LintResponse::default();
 
     let concepts = okf::list_concepts(root)?;
@@ -26,27 +23,6 @@ pub fn collect(root: &Path) -> Result<LintResponse> {
         }
     }
     out.concepts = concepts.len();
-
-    let locks = lock::list_locks(root, &cfg)?;
-    out.locks = locks.len();
-    for (path, lk) in &locks {
-        let concept_path = root.join(&lk.concept);
-        if !concept_path.exists() {
-            out.errors.push(format!(
-                "lock {} points at missing concept {}",
-                path.file_name().unwrap_or_default().to_string_lossy(),
-                lk.concept
-            ));
-        }
-    }
-
-    let mut seen = std::collections::BTreeSet::new();
-    for (_, lk) in &locks {
-        if !seen.insert(lk.concept.clone()) {
-            out.errors.push(format!("duplicate lock for concept {}", lk.concept));
-        }
-    }
-
     Ok(out)
 }
 
@@ -58,9 +34,8 @@ pub fn print_report(report: &LintResponse) {
         println!("error: {e}");
     }
     println!(
-        "bagsy lint: {} concept(s), {} lock(s), {} error(s), {} warning(s)",
+        "bagsy lint: {} concept(s), {} error(s), {} warning(s)",
         report.concepts,
-        report.locks,
         report.errors.len(),
         report.warnings.len()
     );

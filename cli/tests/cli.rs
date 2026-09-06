@@ -20,10 +20,10 @@ fn write_concept(root: &Path, rel: &str, body: &str) {
 
 fn init_okf(tmp: &TempDir) -> PathBuf {
     let root = tmp.path().to_path_buf();
-    fs::create_dir_all(root.join(".bagsy/locks")).unwrap();
+    fs::create_dir_all(root.join(".bagsy")).unwrap();
     fs::write(
         root.join(".bagsy/config.toml"),
-        "default_branch = \"main\"\nlock_dir = \".bagsy/locks\"\n",
+        "default_branch = \"main\"\n",
     )
     .unwrap();
     write_concept(
@@ -49,8 +49,6 @@ type: Playbook
 title: Routing
 description: How work is routed between agents.
 ---
-
-# Routing
 
 Claim before you route.
 "#,
@@ -223,44 +221,143 @@ fn token_create_list_revoke() {
 }
 
 #[test]
-fn server_two_agents_collide_then_recover() {
+fn claim_release_delete_gardener_are_not_commands() {
+    for cmd in ["claim", "release", "delete", "gardener"] {
+        cargo_bin_cmd!("bagsy")
+            .args([cmd, "brain"])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("unrecognized subcommand"));
+    }
+}
+
+#[test]
+fn server_propose_updates_without_claim() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     init_git(&root);
     let tok_a = mint(&root, "agent-a");
     let tok_b = mint(&root, "agent-b");
     let serve = start_serve(&root);
+    let md = root.join("new-brain.md");
+    fs::write(
+        &md,
+        "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nUpdated by A.\n",
+    )
+    .unwrap();
 
     cargo_bin_cmd!("bagsy")
         .env("BAGSY_URL", &serve.url)
         .env("BAGSY_TOKEN", &tok_a)
-        .args(["claim", "brain"])
+        .args(["propose", "brain", "--file"])
+        .arg(&md)
         .assert()
         .success()
-        .stdout(predicate::str::contains("bagsied"));
+        .stdout(predicate::str::contains("proposed"));
 
+    fs::write(
+        &md,
+        "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nUpdated by B.\n",
+    )
+    .unwrap();
     cargo_bin_cmd!("bagsy")
         .env("BAGSY_URL", &serve.url)
         .env("BAGSY_TOKEN", &tok_b)
-        .args(["claim", "brain"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("already bagsied"));
-
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok_a)
-        .args(["release", "brain"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("released"));
-
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok_b)
-        .args(["claim", "brain"])
+        .args(["propose", "brain", "--file"])
+        .arg(&md)
         .assert()
         .success();
+
+    cargo_bin_cmd!("bagsy")
+        .env("BAGSY_URL", &serve.url)
+        .env("BAGSY_TOKEN", &tok_b)
+        .args(["get", "brain"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated by B"));
+}
+
+#[test]
+fn propose_refuses_path_traversal() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let md = root.join("evil.md");
+    fs::write(&md, "---\ntype: Playbook\ntitle: X\n---\n\nnope\n").unwrap();
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["propose", "--file"])
+        .arg(&md)
+        .args(["../secrets"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("refusing").or(predicate::str::contains("must be")));
+}
+
+fn http_exchange(method: &str, url: &str, token: &str) -> (u16, String) {
+    use std::io::{Read, Write};
+    let rest = url.trim_start_matches("http://");
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let path = if path.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{path}")
+    };
+    let mut stream = std::net::TcpStream::connect(host).unwrap();
+    let req = format!(
+        "{method} {path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(req.as_bytes()).unwrap();
+    let mut buf = String::new();
+    stream.read_to_string(&mut buf).unwrap();
+    let status = buf
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    (status, buf)
+}
+
+#[test]
+fn server_rejects_http_delete() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let tok = mint(&root, "reader");
+    let serve = start_serve(&root);
+    let (status, body) = http_exchange(
+        "DELETE",
+        &format!("{}/v1/concepts?path=brain", serve.url),
+        &tok,
+    );
+    assert_eq!(status, 405, "body: {body}");
+    assert!(
+        body.to_lowercase().contains("cannot delete") || body.contains("gardening"),
+        "body: {body}"
+    );
+    let (status2, body2) = http_exchange("DELETE", &format!("{}/v1/proposals", serve.url), &tok);
+    assert_eq!(status2, 405, "body: {body2}");
+    assert!(root.join("concepts/brain.md").is_file());
+}
+
+#[test]
+fn propose_does_not_delete_other_concepts() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    init_git(&root);
+    let md = root.join("brain.md");
+    fs::write(
+        &md,
+        "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nStill here.\n",
+    )
+    .unwrap();
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["propose", "brain", "--file"])
+        .arg(&md)
+        .args(["--agent", "writer"])
+        .assert()
+        .success();
+    assert!(root.join("concepts/brain.md").is_file());
+    assert!(root.join("concepts/routing.md").is_file());
 }
 
 #[test]
@@ -281,52 +378,4 @@ fn server_rejects_revoked_token() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("revoked"));
-}
-
-#[test]
-fn propose_requires_claim_then_writes() {
-    let tmp = TempDir::new().unwrap();
-    let root = init_okf(&tmp);
-    init_git(&root);
-    let tok = mint(&root, "writer");
-    let serve = start_serve(&root);
-    let md = root.join("new-brain.md");
-    fs::write(
-        &md,
-        "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nUpdated by writer.\n",
-    )
-    .unwrap();
-
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
-        .args(["propose", "brain", "--file"])
-        .arg(&md)
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("not claimed"));
-
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
-        .args(["claim", "brain"])
-        .assert()
-        .success();
-
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
-        .args(["propose", "brain", "--file"])
-        .arg(&md)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("proposed"));
-
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
-        .args(["get", "brain"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Updated by writer"));
 }
