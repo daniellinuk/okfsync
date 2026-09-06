@@ -13,7 +13,8 @@ Please report security issues privately to the repository maintainers (Origin/Gi
 bagsy is a CLI plus a local HTTP server around an OKF git working tree. Prefer reporting:
 
 - Token hash storage / token leak in logs
-- Lock bypasses on `bagsy serve`
+- Path traversal or writes outside `concepts/` on propose
+- Any way for the CLI/API to delete knowledge
 - Unsafe git operations on propose/push
 - Supply-chain problems in the npm binary download path (`npm/lib/install.js`)
 

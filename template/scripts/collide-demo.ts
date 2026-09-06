@@ -1,12 +1,11 @@
 /**
- * Collide-then-recover demo: two agents fight over concepts/brain.md via bagsy serve.
- *
- * Agent A bagsies the concept. Agent B's claim fails (collision).
- * Agent A releases. Agent B reclaim succeeds. Lint stays green.
+ * Wiki demo: two agents propose to the same concept via bagsy serve.
+ * Last write wins on disk; git on the server still has both commits.
+ * The CLI cannot delete knowledge.
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, cpSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createConnection } from "node:net";
@@ -71,7 +70,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
   const bin = bagsyBin();
   const workDir = join(
     tmpdir(),
-    `bagsy-collide-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    `bagsy-wiki-${Date.now()}-${Math.random().toString(16).slice(2)}`
   );
   mkdirSync(workDir, { recursive: true });
   cpSync(templateRoot, workDir, {
@@ -103,7 +102,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
     const ok = res.ok === expectOk;
     const detail = (res.stdout + res.stderr).trim();
     steps.push({ name, ok, detail });
-    return res;
+    return { ...res, detail };
   };
 
   try {
@@ -121,23 +120,40 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
     const envA = { BAGSY_URL: url, BAGSY_TOKEN: tokA };
     const envB = { BAGSY_URL: url, BAGSY_TOKEN: tokB };
 
-    console.log(`bagsy collide demo → ${workDir}`);
+    writeFileSync(
+      join(workDir, "a.md"),
+      "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nFrom agent A.\n"
+    );
+    writeFileSync(
+      join(workDir, "b.md"),
+      "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nFrom agent B.\n"
+    );
+
+    console.log(`bagsy wiki demo → ${workDir}`);
     console.log(`binary: ${bin}`);
     console.log(`server: ${url}`);
     console.log();
 
     step("lint (clean)", ["lint", "--root", workDir], {}, true);
-    step("agent-a claim brain", ["claim", "brain"], envA, true);
-    step(
-      "agent-b claim brain (expect collision)",
-      ["claim", "brain"],
-      envB,
-      false
-    );
-    step("agent-a release brain", ["release", "brain"], envA, true);
-    step("agent-b reclaim brain", ["claim", "brain"], envB, true);
-    step("lint after recover", ["lint"], envB, true);
-    step("agent-b release", ["release", "brain"], envB, true);
+    step("agent-a get brain", ["get", "brain"], envA, true);
+    step("agent-a propose brain", ["propose", "brain", "--file", "a.md"], envA, true);
+    step("agent-b propose brain", ["propose", "brain", "--file", "b.md"], envB, true);
+    const got = step("agent-b get brain (latest)", ["get", "brain"], envB, true);
+    const latestOk = got.ok && got.detail.includes("From agent B");
+    steps[steps.length - 1].ok = latestOk;
+    step("lint after proposes", ["lint"], envB, true);
+    step("claim is not a command", ["claim", "brain"], envA, false);
+    step("delete is not a command", ["delete", "brain"], envA, false);
+    step("gardener is not a command", ["gardener"], envA, false);
+
+    const log = spawnSync("git", ["log", "--oneline"], { cwd: workDir, encoding: "utf8" });
+    const historyOk =
+      (log.stdout ?? "").includes("agent-a") && (log.stdout ?? "").includes("agent-b");
+    steps.push({
+      name: "git history keeps both proposes",
+      ok: historyOk,
+      detail: (log.stdout ?? "").trim(),
+    });
   } finally {
     server.kill("SIGTERM");
   }
@@ -158,7 +174,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
     console.error(`work dir kept: ${workDir}`);
     process.exitCode = 1;
   } else {
-    console.log("collide → recover succeeded. Agents don't clobber the brain.");
+    console.log("wiki propose succeeded. Latest wins; git still has history.");
     if (!options.keep && process.env.BAGSY_DEMO_KEEP !== "1") {
       rmSync(workDir, { recursive: true, force: true });
     } else {

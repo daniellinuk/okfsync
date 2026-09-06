@@ -2,6 +2,8 @@ use anyhow::{bail, Context, Result};
 use std::path::Path;
 use std::process::{Command, Output};
 
+use crate::okf;
+
 pub fn run_git(root: &Path, args: &[&str]) -> Result<Output> {
     let output = Command::new("git")
         .args(args)
@@ -30,12 +32,8 @@ pub fn current_branch(root: &Path) -> Result<String> {
     run_git_ok(root, &["rev-parse", "--abbrev-ref", "HEAD"])
 }
 
-pub fn push_branch(root: &Path, branch: &str, force_with_lease: bool) -> Result<()> {
-    if force_with_lease {
-        run_git_ok(root, &["push", "--force-with-lease", "-u", "origin", branch])?;
-    } else {
-        run_git_ok(root, &["push", "-u", "origin", branch])?;
-    }
+pub fn push_branch(root: &Path, branch: &str) -> Result<()> {
+    run_git_ok(root, &["push", "-u", "origin", branch])?;
     Ok(())
 }
 
@@ -45,25 +43,50 @@ pub fn has_remote(root: &Path, name: &str) -> bool {
         .unwrap_or(false)
 }
 
-pub fn status_porcelain(root: &Path) -> Result<String> {
-    run_git_ok(root, &["status", "--porcelain"])
-}
-
+/// Stage and commit only existing concept files. Never `git rm`, `-A`, or force-push.
 pub fn commit_paths(root: &Path, paths: &[&Path], message: &str, agent: &str) -> Result<bool> {
     if !is_git_repo(root) {
         return Ok(false);
     }
+    let mut rels: Vec<String> = Vec::new();
     for p in paths {
-        let rel = p.strip_prefix(root).unwrap_or(p);
-        let rel_s = rel.to_string_lossy().into_owned();
-        run_git_ok(root, &["add", "--", &rel_s])?;
+        if !p.is_file() {
+            bail!(
+                "refusing to stage missing path (bagsy never deletes): {}",
+                p.display()
+            );
+        }
+        let rel = p
+            .strip_prefix(root)
+            .unwrap_or(p)
+            .to_string_lossy()
+            .replace('\\', "/");
+        okf::assert_safe_concept_rel(&rel)?;
+        rels.push(rel);
     }
-    let status = status_porcelain(root)?;
-    if status.is_empty() {
-        return Ok(false);
+    for rel in &rels {
+        run_git_ok(root, &["add", "--", rel])?;
     }
-    let output = Command::new("git")
-        .args(["commit", "-m", message])
+    let mut diff_args: Vec<&str> = vec!["diff", "--cached", "--quiet", "--"];
+    for rel in &rels {
+        diff_args.push(rel.as_str());
+    }
+    let diff = run_git(root, &diff_args)?;
+    match diff.status.code() {
+        Some(0) => return Ok(false),
+        Some(1) => {}
+        _ => {
+            let stderr = String::from_utf8_lossy(&diff.stderr);
+            bail!("git diff --cached failed: {}", stderr.trim());
+        }
+    }
+
+    let mut cmd = Command::new("git");
+    cmd.arg("commit").arg("-m").arg(message).arg("--");
+    for rel in &rels {
+        cmd.arg(rel);
+    }
+    let output = cmd
         .current_dir(root)
         .env("GIT_AUTHOR_NAME", agent)
         .env("GIT_AUTHOR_EMAIL", format!("{agent}@bagsy.local"))
@@ -80,5 +103,5 @@ pub fn commit_paths(root: &Path, paths: &[&Path], message: &str, agent: &str) ->
 
 pub fn push_head(root: &Path) -> Result<()> {
     let branch = current_branch(root)?;
-    push_branch(root, &branch, false)
+    push_branch(root, &branch)
 }

@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -14,12 +14,10 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use crate::api::{
-    ClaimRequest, ClaimResponse, ConceptResponse, ErrorBody, HealthResponse, LintResponse,
-    ProposeRequest, ProposeResponse, ReleaseRequest, ReleaseResponse, API_VERSION,
+    ConceptResponse, ErrorBody, HealthResponse, LintResponse, ProposeRequest, ProposeResponse,
+    API_VERSION,
 };
-use crate::config::Config;
 use crate::git;
-use crate::lock;
 use crate::okf;
 use crate::token;
 
@@ -32,12 +30,7 @@ struct AppState {
 type ApiError = (StatusCode, Json<ErrorBody>);
 
 fn err(status: StatusCode, msg: impl Into<String>) -> ApiError {
-    (
-        status,
-        Json(ErrorBody {
-            error: msg.into(),
-        }),
-    )
+    (status, Json(ErrorBody { error: msg.into() }))
 }
 
 fn agent_from(headers: &HeaderMap, root: &std::path::Path) -> Result<String, ApiError> {
@@ -52,7 +45,8 @@ fn agent_from(headers: &HeaderMap, root: &std::path::Path) -> Result<String, Api
         .trim();
     if presented.is_empty() {
         if let Some(alt) = headers.get("x-bagsy-token").and_then(|v| v.to_str().ok()) {
-            return token::authenticate(root, alt.trim()).map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()));
+            return token::authenticate(root, alt.trim())
+                .map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()));
         }
         return Err(err(
             StatusCode::UNAUTHORIZED,
@@ -93,56 +87,6 @@ async fn get_concept(
     }))
 }
 
-async fn post_claim(
-    State(st): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(body): Json<ClaimRequest>,
-) -> Result<Json<ClaimResponse>, ApiError> {
-    let agent = agent_from(&headers, &st.root)?;
-    let _guard = st.mutex.lock().await;
-    let cfg = Config::load(&st.root).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let rel = lock::normalize_concept(&body.concept);
-    okf::read_concept(&st.root, &rel).map_err(|e| err(StatusCode::NOT_FOUND, e.to_string()))?;
-    let claim = lock::try_claim(&st.root, &cfg, &rel, &agent)
-        .map_err(|e| err(StatusCode::CONFLICT, e.to_string()))?;
-    Ok(Json(ClaimResponse {
-        concept: claim.concept,
-        agent: claim.agent,
-        claimed_at: claim.claimed_at.to_rfc3339(),
-    }))
-}
-
-async fn post_release(
-    State(st): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(body): Json<ReleaseRequest>,
-) -> Result<Json<ReleaseResponse>, ApiError> {
-    let agent = agent_from(&headers, &st.root)?;
-    let _guard = st.mutex.lock().await;
-    let cfg = Config::load(&st.root).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let rel = lock::normalize_concept(&body.concept);
-    let path = lock::lock_path(&st.root, &cfg, &rel);
-    match lock::read_lock(&path).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))? {
-        None => Err(err(StatusCode::NOT_FOUND, format!("no lock found for '{rel}'"))),
-        Some(existing) => {
-            if existing.agent != agent && !body.force {
-                return Err(err(
-                    StatusCode::FORBIDDEN,
-                    format!(
-                        "lock for '{rel}' is held by '{}' (you are '{agent}'). Use --force to override.",
-                        existing.agent
-                    ),
-                ));
-            }
-            lock::remove_lock(&path).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            Ok(Json(ReleaseResponse {
-                concept: rel,
-                was_held_by: existing.agent,
-            }))
-        }
-    }
-}
-
 async fn post_proposal(
     State(st): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -160,9 +104,7 @@ async fn post_proposal(
     )
     .map_err(|e| {
         let msg = e.to_string();
-        if msg.contains("not claimed") || msg.contains("bagsied by") {
-            err(StatusCode::CONFLICT, msg)
-        } else if msg.contains("invalid OKF") || msg.contains("not found") {
+        if msg.contains("invalid") || msg.contains("refusing") || msg.contains("must be") {
             err(StatusCode::BAD_REQUEST, msg)
         } else {
             err(StatusCode::INTERNAL_SERVER_ERROR, msg)
@@ -190,11 +132,27 @@ async fn get_lint(
     Query(_q): Query<LintQuery>,
 ) -> Result<Json<LintResponse>, ApiError> {
     let _agent = agent_from(&headers, &st.root)?;
-    crate::lint::collect(&st.root).map(Json).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    crate::lint::collect(&st.root)
+        .map(Json)
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
 }
 
-async fn fallback() -> impl IntoResponse {
-    err(StatusCode::NOT_FOUND, "unknown path — bagsy API is /health and /v1/…")
+async fn reject_delete() -> impl IntoResponse {
+    err(
+        StatusCode::METHOD_NOT_ALLOWED,
+        "bagsy CLI/API cannot delete knowledge; gardening is out of band (git history)",
+    )
+}
+
+async fn fallback(method: Method) -> impl IntoResponse {
+    if method == Method::DELETE {
+        return reject_delete().await.into_response();
+    }
+    err(
+        StatusCode::NOT_FOUND,
+        "unknown path — bagsy API is /health and /v1/…",
+    )
+    .into_response()
 }
 
 pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64) -> Result<()> {
@@ -204,11 +162,9 @@ pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64
             root.display()
         );
     }
+    crate::config::Config::load(&root)?;
 
-    let n_active = token::list(&root)?
-        .iter()
-        .filter(|t| t.is_active())
-        .count();
+    let n_active = token::list(&root)?.iter().filter(|t| t.is_active()).count();
     if n_active == 0 {
         eprintln!("warning: no active agent tokens — run `bagsy token create --agent <id>`");
     }
@@ -239,13 +195,11 @@ pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64
     }
 
     let app = Router::new()
-        .route("/health", get(health))
-        .route("/v1/health", get(health))
-        .route("/v1/concepts", get(get_concept))
-        .route("/v1/claims", post(post_claim))
-        .route("/v1/releases", post(post_release))
-        .route("/v1/proposals", post(post_proposal))
-        .route("/v1/lint", get(get_lint))
+        .route("/health", get(health).delete(reject_delete))
+        .route("/v1/health", get(health).delete(reject_delete))
+        .route("/v1/concepts", get(get_concept).delete(reject_delete))
+        .route("/v1/proposals", post(post_proposal).delete(reject_delete))
+        .route("/v1/lint", get(get_lint).delete(reject_delete))
         .fallback(fallback)
         .with_state(state);
 
@@ -255,9 +209,12 @@ pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64
     let local = listener.local_addr()?;
     println!("bagsy serve listening on http://{local}");
     println!("  data dir: {}", root.display());
-    println!("  api:      /health  /v1/concepts|claims|releases|proposals|lint");
+    println!("  api:      /health  /v1/concepts|proposals|lint  (no delete)");
     if n_active == 0 {
-        println!("  tokens:   none (create with bagsy token create --agent <id> --root {})", root.display());
+        println!(
+            "  tokens:   none (create with bagsy token create --agent <id> --root {})",
+            root.display()
+        );
     } else {
         println!("  tokens:   {n_active} active");
     }

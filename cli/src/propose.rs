@@ -1,9 +1,7 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-use crate::config::Config;
 use crate::git;
-use crate::lock;
 use crate::okf;
 
 pub struct Outcome {
@@ -12,6 +10,7 @@ pub struct Outcome {
     pub pushed: bool,
 }
 
+/// Create or overwrite one concept. Never deletes files.
 pub fn run(
     root: &Path,
     concept: &str,
@@ -20,18 +19,7 @@ pub fn run(
     title: Option<&str>,
     push: bool,
 ) -> Result<Outcome> {
-    let cfg = Config::load(root)?;
-    let rel = lock::normalize_concept(concept);
-    let lock_file = lock::lock_path(root, &cfg, &rel);
-    match lock::read_lock(&lock_file)? {
-        Some(existing) if existing.agent == agent => {}
-        Some(existing) => bail!(
-            "concept '{rel}' is bagsied by '{}' (you are '{agent}')",
-            existing.agent
-        ),
-        None => bail!("concept '{rel}' is not claimed — run bagsy claim first"),
-    }
-    let written = okf::write_concept_markdown(root, &rel, markdown)?;
+    let written = okf::write_concept_markdown(root, concept, markdown)?;
     let path: PathBuf = root.join(&written.rel);
     let msg = title
         .map(|t| t.to_string())

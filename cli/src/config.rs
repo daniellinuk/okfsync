@@ -4,18 +4,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_BRANCH: &str = "main";
-pub const LOCK_DIR: &str = ".bagsy/locks";
 pub const CONFIG_FILE: &str = ".bagsy/config.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Relative knowledge root inside the repo (usually ".")
+    /// Relative knowledge root inside the repo (usually ".").
     #[serde(default = "default_knowledge_root")]
+    #[allow(dead_code)]
     pub knowledge_root: String,
     #[serde(default = "default_branch")]
     pub default_branch: String,
-    #[serde(default = "default_lock_dir")]
-    pub lock_dir: String,
 }
 
 fn default_knowledge_root() -> String {
@@ -24,16 +22,12 @@ fn default_knowledge_root() -> String {
 fn default_branch() -> String {
     DEFAULT_BRANCH.into()
 }
-fn default_lock_dir() -> String {
-    LOCK_DIR.into()
-}
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             knowledge_root: default_knowledge_root(),
             default_branch: default_branch(),
-            lock_dir: default_lock_dir(),
         }
     }
 }
@@ -46,13 +40,9 @@ impl Config {
         }
         let text = fs::read_to_string(&path)
             .with_context(|| format!("reading config {}", path.display()))?;
-        let cfg: Config = toml::from_str(&text)
-            .with_context(|| format!("parsing config {}", path.display()))?;
+        let cfg: Config =
+            toml::from_str(&text).with_context(|| format!("parsing config {}", path.display()))?;
         Ok(cfg)
-    }
-
-    pub fn lock_dir_path(&self, root: &Path) -> PathBuf {
-        root.join(&self.lock_dir)
     }
 }
 

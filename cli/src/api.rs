@@ -27,31 +27,6 @@ pub struct ConceptResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClaimRequest {
-    pub concept: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClaimResponse {
-    pub concept: String,
-    pub agent: String,
-    pub claimed_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReleaseRequest {
-    pub concept: String,
-    #[serde(default)]
-    pub force: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReleaseResponse {
-    pub concept: String,
-    pub was_held_by: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposeRequest {
     pub concept: String,
     /// Full markdown document (frontmatter + body).
@@ -72,7 +47,6 @@ pub struct ProposeResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LintResponse {
     pub concepts: usize,
-    pub locks: usize,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
 }

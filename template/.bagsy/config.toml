@@ -1,4 +1,3 @@
 # bagsy knowledge root
 default_branch = "main"
-lock_dir = ".bagsy/locks"
 knowledge_root = "."

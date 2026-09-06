@@ -53,8 +53,7 @@ pub fn load(root: &Path) -> Result<TokenStore> {
     if !path.exists() {
         return Ok(TokenStore::default());
     }
-    let text = fs::read_to_string(&path)
-        .with_context(|| format!("reading {}", path.display()))?;
+    let text = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     if text.trim().is_empty() {
         return Ok(TokenStore::default());
     }
@@ -64,8 +63,7 @@ pub fn load(root: &Path) -> Result<TokenStore> {
 fn save(root: &Path, store: &TokenStore) -> Result<()> {
     let path = tokens_path(root);
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
+        fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
     }
     let text = toml::to_string_pretty(store).context("serializing tokens")?;
     let tmp = path.with_extension("toml.tmp");

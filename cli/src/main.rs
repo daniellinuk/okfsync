@@ -1,20 +1,17 @@
 //! bagsy — Bagsy a concept so your agents don't clobber the brain.
 //!
-//! CLI for agents; `bagsy serve` holds the OKF KB. Per-agent bearer tokens
-//! gate access. Workers claim, propose markdown, release. Never clone required.
+//! CLI for agents; `bagsy serve` holds the OKF wiki. Per-agent bearer tokens
+//! gate access. Agents get and propose markdown. No claim/release. No deletes.
 
 mod api;
-mod claim;
 mod client;
 mod config;
 mod get;
 mod git;
 mod init;
 mod lint;
-mod lock;
 mod okf;
 mod propose;
-mod release;
 mod server;
 mod token;
 
@@ -29,9 +26,10 @@ use std::path::{Path, PathBuf};
     name = "bagsy",
     version,
     about = "Bagsy a concept so your agents don't clobber the brain.",
-    long_about = "OSS CLI for agent-swarm shared memory on OKF.\n\
+    long_about = "OSS CLI for a multi-agent OKF wiki.\n\
 Agents talk to `bagsy serve` over HTTP with a per-agent bearer token.\n\
-The KB owner runs init/serve/token on the data directory."
+The CLI can read and propose (create/update) concepts. It cannot delete.\n\
+The KB owner runs init/serve/token on the data directory. Gardening is out of band."
 )]
 struct Cli {
     /// Path to the OKF knowledge root (directory containing concepts/).
@@ -76,26 +74,7 @@ enum Commands {
         /// Concept path, e.g. brain or concepts/brain.md
         concept: String,
     },
-    /// Claim exclusive write access to a concept (server lock).
-    Claim {
-        /// Concept path to claim
-        concept: String,
-        /// Agent identity for local (no URL) mode. Ignored in server mode (token is identity).
-        #[arg(long, env = "BAGSY_AGENT")]
-        agent: Option<String>,
-    },
-    /// Release a claim on a concept (removes lock).
-    Release {
-        /// Concept path to release
-        concept: String,
-        /// Agent identity for local mode. Ignored in server mode.
-        #[arg(long, env = "BAGSY_AGENT")]
-        agent: Option<String>,
-        /// Release even if another agent holds the lock
-        #[arg(long)]
-        force: bool,
-    },
-    /// Write a new markdown document for a claimed concept (server commits).
+    /// Create or update a concept (never deletes). Server commits on its clone.
     Propose {
         /// Concept path
         concept: String,
@@ -108,11 +87,11 @@ enum Commands {
         /// Push to origin after commit (local mode only; server uses serve --push)
         #[arg(long)]
         push: bool,
-        /// Agent identity for local mode. Ignored in server mode.
+        /// Agent identity for local mode. Ignored in server mode (token is identity).
         #[arg(long, env = "BAGSY_AGENT")]
         agent: Option<String>,
     },
-    /// Lint OKF concepts + bagsy lock hygiene.
+    /// Lint OKF concepts (frontmatter).
     Lint {
         /// Treat warnings as errors
         #[arg(long)]
@@ -170,36 +149,6 @@ fn main() -> Result<()> {
                 get::run(&root, &concept)
             }
         }
-        Commands::Claim { concept, agent } => {
-            if let Some(r) = remote {
-                let resp = r.claim(&concept)?;
-                println!("bagsied '{}'", resp.concept);
-                println!("  agent: {}", resp.agent);
-                println!();
-                println!("Edit, then: bagsy propose {concept} --file <markdown>");
-                Ok(())
-            } else {
-                let agent = config::default_agent(agent.as_deref());
-                claim::run(&root, &concept, &agent)
-            }
-        }
-        Commands::Release {
-            concept,
-            agent,
-            force,
-        } => {
-            if let Some(r) = remote {
-                let resp = r.release(&concept, force)?;
-                println!(
-                    "released '{}' (was held by {})",
-                    resp.concept, resp.was_held_by
-                );
-                Ok(())
-            } else {
-                let agent = config::default_agent(agent.as_deref());
-                release::run(&root, &concept, &agent, force)
-            }
-        }
         Commands::Propose {
             concept,
             file,
@@ -207,8 +156,8 @@ fn main() -> Result<()> {
             push,
             agent,
         } => {
-            let markdown = fs::read_to_string(&file)
-                .with_context(|| format!("reading {}", file.display()))?;
+            let markdown =
+                fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
             if let Some(r) = remote {
                 let resp = r.propose(&concept, &markdown, title.as_deref())?;
                 println!("proposed '{}'", resp.concept);
@@ -218,14 +167,7 @@ fn main() -> Result<()> {
                 Ok(())
             } else {
                 let agent = config::default_agent(agent.as_deref());
-                let out = propose::run(
-                    &root,
-                    &concept,
-                    &agent,
-                    &markdown,
-                    title.as_deref(),
-                    push,
-                )?;
+                let out = propose::run(&root, &concept, &agent, &markdown, title.as_deref(), push)?;
                 propose::print_outcome(&out, &agent);
                 Ok(())
             }
@@ -254,10 +196,7 @@ fn token_cmd(root: &Path, cmd: TokenCmd) -> Result<()> {
         } => {
             let issued = token::create(root, &agent, rotate)?;
             if json {
-                println!(
-                    "{}",
-                    serde_json::to_string(&issued).context("json token")?
-                );
+                println!("{}", serde_json::to_string(&issued).context("json token")?);
             } else {
                 println!("created token for agent '{}'", issued.agent);
                 println!("  id:    {}", issued.id);
