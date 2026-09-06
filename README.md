@@ -72,7 +72,7 @@ export BAGSY_URL=http://127.0.0.1:7432
 export BAGSY_TOKEN=bgy_…          # from the owner
 
 bagsy get brain
-# edit a local markdown file
+# stdout is the raw markdown (round-trips into propose)
 bagsy propose brain --file ./brain.md
 bagsy lint
 ```

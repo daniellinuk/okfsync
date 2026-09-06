@@ -62,8 +62,12 @@ pub fn from_opts(url: Option<&str>, token: Option<&str>) -> Result<Option<Remote
     let token = nonempty(token).or_else(|| nonempty_env("BAGSY_TOKEN"));
     match (url, token) {
         (None, None) => Ok(None),
-        (Some(_), None) => bail!("BAGSY_URL is set but BAGSY_TOKEN is missing"),
-        (None, Some(_)) => bail!("BAGSY_TOKEN is set but BAGSY_URL is missing"),
+        (Some(_), None) => bail!(
+            "BAGSY_TOKEN is missing (BAGSY_URL is set)\n  bagsy get <concept> --url http://127.0.0.1:7432 --token <token>\n  export BAGSY_TOKEN=<token>"
+        ),
+        (None, Some(_)) => bail!(
+            "BAGSY_URL is missing (BAGSY_TOKEN is set)\n  bagsy get <concept> --url http://127.0.0.1:7432 --token <token>\n  export BAGSY_URL=http://127.0.0.1:7432"
+        ),
         (Some(url), Some(token)) => Ok(Some(Remote::new(&url, &token))),
     }
 }

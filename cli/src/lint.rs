@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::Path;
 
 use crate::api::LintResponse;
@@ -26,7 +26,11 @@ pub fn collect(root: &Path) -> Result<LintResponse> {
     Ok(out)
 }
 
-pub fn print_report(report: &LintResponse) {
+pub fn print_report(report: &LintResponse, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string(report).context("json lint")?);
+        return Ok(());
+    }
     for w in &report.warnings {
         println!("warning: {w}");
     }
@@ -39,15 +43,16 @@ pub fn print_report(report: &LintResponse) {
         report.errors.len(),
         report.warnings.len()
     );
+    Ok(())
 }
 
 pub fn failed(report: &LintResponse, strict: bool) -> bool {
     !report.errors.is_empty() || (strict && !report.warnings.is_empty())
 }
 
-pub fn run(root: &Path, strict: bool) -> Result<()> {
+pub fn run(root: &Path, strict: bool, json: bool) -> Result<()> {
     let report = collect(root)?;
-    print_report(&report);
+    print_report(&report, json)?;
     if failed(&report, strict) {
         std::process::exit(1);
     }

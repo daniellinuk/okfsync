@@ -72,21 +72,43 @@ pub fn parse_frontmatter(text: &str) -> Result<(Frontmatter, String)> {
     Ok((fm, body))
 }
 
+#[derive(Debug, Clone)]
+pub struct Document {
+    pub concept: Concept,
+    /// Exact markdown on disk (frontmatter + body). Round-trip this into `propose`.
+    pub markdown: String,
+}
+
 pub fn read_concept(root: &Path, concept: &str) -> Result<Concept> {
+    Ok(load_document(root, concept)?.concept)
+}
+
+pub fn load_document(root: &Path, concept: &str) -> Result<Document> {
     let rel = normalize_concept_path(concept)?;
     let path = root.join(&rel);
     ensure_under_concepts(root, &path)?;
     if !path.exists() {
-        bail!("concept not found: {} ({})", rel, path.display());
+        bail!("concept not found: {rel}\n  bagsy get brain\n  bagsy lint");
     }
-    let text = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let markdown =
+        fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let (frontmatter, body) =
-        parse_frontmatter(&text).with_context(|| format!("invalid OKF concept {}", rel))?;
-    Ok(Concept {
-        rel,
-        frontmatter,
-        body,
+        parse_frontmatter(&markdown).with_context(|| format!("invalid OKF concept {rel}"))?;
+    Ok(Document {
+        concept: Concept {
+            rel,
+            frontmatter,
+            body,
+        },
+        markdown,
     })
+}
+
+/// Validate markdown and path without writing (propose --dry-run).
+pub fn validate_propose(concept: &str, markdown: &str) -> Result<String> {
+    let rel = normalize_concept_path(concept)?;
+    parse_frontmatter(markdown).with_context(|| format!("invalid OKF concept {rel}"))?;
+    Ok(rel)
 }
 
 /// Write a full markdown document after validating OKF frontmatter.

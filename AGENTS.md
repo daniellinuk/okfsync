@@ -19,10 +19,10 @@ Typical **owner** flow:
 Typical **worker** flow:
 
 1. `BAGSY_URL` + `BAGSY_TOKEN`
-2. `bagsy get` → edit a local file → `bagsy propose --file`
+2. `bagsy get brain > brain.md` → edit → `bagsy propose brain --file brain.md`
 3. `bagsy lint`
 
-There is no `claim` or `release`.
+`get --help` / `propose --help` include copy-pasteable examples. `--json` is machine-readable. `propose --file -` reads stdin. There is no `claim` or `release`.
 
 ## Layout
 

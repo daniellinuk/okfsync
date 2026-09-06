@@ -23,7 +23,7 @@ default_branch = "main"
 knowledge_root = "."
 "#;
 
-pub fn run(root: &Path) -> Result<()> {
+pub fn run(root: &Path, json: bool) -> Result<()> {
     fs::create_dir_all(root.join(".bagsy"))?;
     fs::create_dir_all(root.join("concepts"))?;
 
@@ -57,6 +57,16 @@ pub fn run(root: &Path) -> Result<()> {
 
     if !root.join("concepts").is_dir() {
         bail!("init failed: concepts/ missing");
+    }
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "root": root.display().to_string(),
+            })
+        );
+        return Ok(());
     }
 
     println!("initialized bagsy KB at {}", root.display());

@@ -23,7 +23,11 @@ pub struct ConceptResponse {
     pub title: Option<String>,
     pub description: Option<String>,
     pub tags: Vec<String>,
+    #[serde(default)]
     pub body: String,
+    /// Full document (frontmatter + body) for round-trip into propose.
+    #[serde(default)]
+    pub markdown: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

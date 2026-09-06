@@ -102,8 +102,7 @@ pub fn create(root: &Path, agent: &str, rotate: bool) -> Result<IssuedToken> {
         .collect();
     if !active.is_empty() && !rotate {
         bail!(
-            "agent '{agent}' already has an active token (id {}). \
-Revoke it first, or pass --rotate to replace it.",
+            "agent '{agent}' already has an active token (id {}).\n  bagsy token create --agent {agent} --rotate\n  bagsy token revoke --agent {agent}",
             active
                 .iter()
                 .map(|t| t.id.as_str())
@@ -143,38 +142,58 @@ pub fn list(root: &Path) -> Result<Vec<TokenRecord>> {
     Ok(load(root)?.tokens)
 }
 
-pub fn revoke_by_id(root: &Path, id: &str) -> Result<TokenRecord> {
+pub fn revoke_by_id(root: &Path, id: &str, dry_run: bool) -> Result<(TokenRecord, bool)> {
     let mut store = load(root)?;
-    let now = Utc::now();
     let rec = store
         .tokens
         .iter_mut()
         .find(|t| t.id == id)
-        .ok_or_else(|| anyhow::anyhow!("no token with id '{id}'"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no token with id '{id}'\n  bagsy token list\n  bagsy token revoke --id <token-id>"
+            )
+        })?;
     if rec.revoked_at.is_some() {
-        bail!("token '{id}' is already revoked");
+        return Ok((rec.clone(), false));
     }
-    rec.revoked_at = Some(now);
+    if dry_run {
+        return Ok((rec.clone(), true));
+    }
+    rec.revoked_at = Some(Utc::now());
     let cloned = rec.clone();
     save(root, &store)?;
-    Ok(cloned)
+    Ok((cloned, true))
 }
 
-pub fn revoke_by_agent(root: &Path, agent: &str) -> Result<Vec<TokenRecord>> {
+pub fn revoke_by_agent(
+    root: &Path,
+    agent: &str,
+    dry_run: bool,
+) -> Result<(Vec<TokenRecord>, bool)> {
     let mut store = load(root)?;
     let now = Utc::now();
     let mut revoked = Vec::new();
     for t in store.tokens.iter_mut() {
         if t.agent == agent && t.is_active() {
-            t.revoked_at = Some(now);
+            if !dry_run {
+                t.revoked_at = Some(now);
+            }
             revoked.push(t.clone());
         }
     }
     if revoked.is_empty() {
-        bail!("no active token for agent '{agent}'");
+        let known = store.tokens.iter().any(|t| t.agent == agent);
+        if known {
+            return Ok((vec![], false));
+        }
+        bail!(
+            "no token for agent '{agent}'\n  bagsy token list\n  bagsy token create --agent {agent}"
+        );
     }
-    save(root, &store)?;
-    Ok(revoked)
+    if !dry_run {
+        save(root, &store)?;
+    }
+    Ok((revoked, true))
 }
 
 /// Resolve a presented bearer token to the agent name, if it is active.
@@ -208,8 +227,10 @@ mod tests {
         let tmp = root();
         let issued = create(tmp.path(), "alice", false).unwrap();
         assert_eq!(authenticate(tmp.path(), &issued.token).unwrap(), "alice");
-        revoke_by_id(tmp.path(), &issued.id).unwrap();
+        revoke_by_id(tmp.path(), &issued.id, false).unwrap();
         assert!(authenticate(tmp.path(), &issued.token).is_err());
+        let (_, changed) = revoke_by_id(tmp.path(), &issued.id, false).unwrap();
+        assert!(!changed);
     }
 
     #[test]
@@ -225,8 +246,11 @@ mod tests {
     fn revoke_agent_kills_all_active() {
         let tmp = root();
         create(tmp.path(), "carol", false).unwrap();
-        let n = revoke_by_agent(tmp.path(), "carol").unwrap();
+        let (n, changed) = revoke_by_agent(tmp.path(), "carol", false).unwrap();
         assert_eq!(n.len(), 1);
-        assert!(revoke_by_agent(tmp.path(), "carol").is_err());
+        assert!(changed);
+        let (n2, changed2) = revoke_by_agent(tmp.path(), "carol", false).unwrap();
+        assert!(n2.is_empty());
+        assert!(!changed2);
     }
 }
