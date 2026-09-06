@@ -14,8 +14,8 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use crate::api::{
-    ConceptResponse, ErrorBody, HealthResponse, LintResponse, ProposeRequest, ProposeResponse,
-    API_VERSION,
+    ConceptResponse, ErrorBody, HealthResponse, LintResponse, PagesResponse, ProposeRequest,
+    ProposeResponse, API_VERSION,
 };
 use crate::git;
 use crate::okf;
@@ -75,8 +75,9 @@ async fn get_concept(
     Query(q): Query<PathQuery>,
 ) -> Result<Json<ConceptResponse>, ApiError> {
     let _agent = agent_from(&headers, &st.root)?;
-    let c = okf::read_concept(&st.root, &q.path)
+    let doc = okf::load_document(&st.root, &q.path)
         .map_err(|e| err(StatusCode::NOT_FOUND, e.to_string()))?;
+    let c = doc.concept;
     Ok(Json(ConceptResponse {
         rel: c.rel,
         r#type: c.frontmatter.r#type,
@@ -84,7 +85,29 @@ async fn get_concept(
         description: c.frontmatter.description,
         tags: c.frontmatter.tags,
         body: c.body,
+        markdown: doc.markdown,
     }))
+}
+
+#[derive(Deserialize)]
+struct PagesQuery {
+    #[serde(default)]
+    q: Option<String>,
+}
+
+async fn list_pages(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<PagesQuery>,
+) -> Result<Json<PagesResponse>, ApiError> {
+    let _agent = agent_from(&headers, &st.root)?;
+    let concepts = match q.q.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(query) => crate::okf::search_concepts(&st.root, query)
+            .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
+        None => crate::okf::summaries(&st.root)
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+    };
+    Ok(Json(PagesResponse { concepts }))
 }
 
 async fn post_proposal(
@@ -101,6 +124,7 @@ async fn post_proposal(
         &body.markdown,
         body.title.as_deref(),
         st.push,
+        false,
     )
     .map_err(|e| {
         let msg = e.to_string();
@@ -155,7 +179,13 @@ async fn fallback(method: Method) -> impl IntoResponse {
     .into_response()
 }
 
-pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64) -> Result<()> {
+pub async fn run(
+    root: PathBuf,
+    bind: SocketAddr,
+    push: bool,
+    push_interval: u64,
+    json: bool,
+) -> Result<()> {
     if !root.join("concepts").is_dir() && !root.join(".bagsy").is_dir() {
         anyhow::bail!(
             "{} does not look like a bagsy KB (need concepts/ or .bagsy/). Run `bagsy init`.",
@@ -198,6 +228,7 @@ pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64
         .route("/health", get(health).delete(reject_delete))
         .route("/v1/health", get(health).delete(reject_delete))
         .route("/v1/concepts", get(get_concept).delete(reject_delete))
+        .route("/v1/pages", get(list_pages).delete(reject_delete))
         .route("/v1/proposals", post(post_proposal).delete(reject_delete))
         .route("/v1/lint", get(get_lint).delete(reject_delete))
         .fallback(fallback)
@@ -207,16 +238,28 @@ pub async fn run(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64
         .await
         .with_context(|| format!("binding {bind}"))?;
     let local = listener.local_addr()?;
-    println!("bagsy serve listening on http://{local}");
-    println!("  data dir: {}", root.display());
-    println!("  api:      /health  /v1/concepts|proposals|lint  (no delete)");
-    if n_active == 0 {
+    if json {
         println!(
-            "  tokens:   none (create with bagsy token create --agent <id> --root {})",
-            root.display()
+            "{}",
+            serde_json::json!({
+                "url": format!("http://{local}"),
+                "root": root.display().to_string(),
+                "api": API_VERSION,
+                "tokens": n_active,
+            })
         );
     } else {
-        println!("  tokens:   {n_active} active");
+        println!("bagsy serve listening on http://{local}");
+        println!("  data dir: {}", root.display());
+        println!("  api:      /health  /v1/concepts|pages|proposals|lint  (no delete)");
+        if n_active == 0 {
+            println!(
+                "  tokens:   none (create with bagsy token create --agent <id> --root {})",
+                root.display()
+            );
+        } else {
+            println!("  tokens:   {n_active} active");
+        }
     }
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -230,10 +273,16 @@ async fn shutdown_signal() {
     eprintln!("bagsy serve: shutting down");
 }
 
-pub fn run_blocking(root: PathBuf, bind: SocketAddr, push: bool, push_interval: u64) -> Result<()> {
+pub fn run_blocking(
+    root: PathBuf,
+    bind: SocketAddr,
+    push: bool,
+    push_interval: u64,
+    json: bool,
+) -> Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .context("tokio runtime")?;
-    rt.block_on(run(root, bind, push, push_interval))
+    rt.block_on(run(root, bind, push, push_interval, json))
 }

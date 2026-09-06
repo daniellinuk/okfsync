@@ -19,10 +19,12 @@ Typical **owner** flow:
 Typical **worker** flow:
 
 1. `BAGSY_URL` + `BAGSY_TOKEN`
-2. `bagsy get` → edit a local file → `bagsy propose --file`
+2. `bagsy list` / `bagsy search <query>` → `bagsy get brain > brain.md` → edit → `bagsy propose brain --file brain.md`
 3. `bagsy lint`
 
-There is no `claim` or `release`.
+`--url` / `--token` exist only on agent commands (`list` `search` `get` `propose` `lint`), not on `init`/`serve`/`token`.
+
+`get --help` / `propose --help` include copy-pasteable examples. `--json` is machine-readable. `propose --file -` reads stdin. There is no `claim` or `release`.
 
 ## Layout
 
@@ -59,7 +61,7 @@ Keep the wiki demo green (`bun run demo` / `bun run test:template`).
 
 Owner: `init`, `serve`, `token create|list|revoke`.
 
-Agents: `get`, `propose --file`, `lint` with `BAGSY_URL` + `BAGSY_TOKEN`.
+Agents: `list`, `search`, `get`, `propose --file`, `lint` with `BAGSY_URL` + `BAGSY_TOKEN`.
 
 Token identity wins over `--agent` in server mode.
 

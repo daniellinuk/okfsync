@@ -153,6 +153,7 @@ fn get_prints_concept_locally() {
         .args(["get", "brain"])
         .assert()
         .success()
+        .stdout(predicate::str::starts_with("---"))
         .stdout(predicate::str::contains("Shared Brain"))
         .stdout(predicate::str::contains("type: Playbook"));
 }
@@ -218,6 +219,262 @@ fn token_create_list_revoke() {
         .assert()
         .success()
         .stdout(predicate::str::contains("revoked"));
+}
+
+#[test]
+fn help_includes_examples() {
+    for args in [
+        vec!["--help"],
+        vec!["list", "--help"],
+        vec!["search", "--help"],
+        vec!["get", "--help"],
+        vec!["propose", "--help"],
+        vec!["lint", "--help"],
+        vec!["token", "create", "--help"],
+        vec!["token", "revoke", "--help"],
+        vec!["init", "--help"],
+        vec!["serve", "--help"],
+    ] {
+        cargo_bin_cmd!("bagsy")
+            .args(&args)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Examples:"));
+    }
+}
+
+#[test]
+fn get_round_trips_into_propose() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    init_git(&root);
+    let out = cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["get", "brain"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let md = root.join("roundtrip.md");
+    fs::write(&md, &out).unwrap();
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["propose", "brain", "--file"])
+        .arg(&md)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("unchanged"));
+}
+
+#[test]
+fn propose_reads_stdin() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    init_git(&root);
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["propose", "brain", "--file", "-"])
+        .write_stdin("---\ntype: Playbook\ntitle: Shared Brain\n---\n\nFrom stdin.\n")
+        .assert()
+        .success();
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["get", "brain"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("From stdin."));
+}
+
+#[test]
+fn get_json_includes_markdown() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let out = cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["get", "brain", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["rel"], "concepts/brain.md");
+    assert!(v["markdown"].as_str().unwrap().starts_with("---"));
+}
+
+#[test]
+fn missing_token_error_includes_invocation() {
+    cargo_bin_cmd!("bagsy")
+        .env("BAGSY_URL", "http://127.0.0.1:9")
+        .args(["get", "brain"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("bagsy get"))
+        .stderr(predicate::str::contains("--token"));
+}
+
+#[test]
+fn token_revoke_without_target_includes_invocation() {
+    cargo_bin_cmd!("bagsy")
+        .args(["token", "revoke"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("token revoke --agent"));
+}
+
+#[test]
+fn propose_dry_run_does_not_write() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let original = fs::read_to_string(root.join("concepts/brain.md")).unwrap();
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["propose", "brain", "--file", "-", "--dry-run"])
+        .write_stdin("---\ntype: Playbook\ntitle: Shared Brain\n---\n\nWould not save.\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("dry-run"));
+    assert_eq!(
+        fs::read_to_string(root.join("concepts/brain.md")).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn token_revoke_is_idempotent() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    mint(&root, "alice");
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["token", "revoke", "--agent", "alice"])
+        .assert()
+        .success();
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["token", "revoke", "--agent", "alice"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already revoked"));
+}
+
+#[test]
+fn get_without_concept_includes_invocation() {
+    cargo_bin_cmd!("bagsy")
+        .args(["get"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("bagsy get brain"));
+}
+
+#[test]
+fn token_create_without_agent_includes_invocation() {
+    cargo_bin_cmd!("bagsy")
+        .args(["token", "create"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("token create --agent"));
+}
+
+#[test]
+fn url_token_flags_are_agent_only() {
+    cargo_bin_cmd!("bagsy")
+        .args(["init", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--root"))
+        .stdout(predicate::str::contains("--url").not());
+    cargo_bin_cmd!("bagsy")
+        .args(["serve", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--url").not());
+    cargo_bin_cmd!("bagsy")
+        .args(["token", "list", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--url").not());
+    cargo_bin_cmd!("bagsy")
+        .args(["get", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--url"))
+        .stdout(predicate::str::contains("--token"));
+}
+
+#[test]
+fn init_ignores_agent_url_env() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    cargo_bin_cmd!("bagsy")
+        .env("BAGSY_URL", "http://127.0.0.1:9")
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    assert!(root.join("concepts").is_dir());
+}
+
+#[test]
+fn list_and_search_concepts() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("concepts/brain.md"))
+        .stdout(predicate::str::contains("concepts/routing.md"));
+    cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["search", "routing"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("concepts/routing.md"))
+        .stdout(predicate::str::contains("concepts/brain.md").not());
+    let out = cargo_bin_cmd!("bagsy")
+        .current_dir(&root)
+        .args(["list", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert!(v["concepts"].as_array().unwrap().len() >= 2);
+}
+
+#[test]
+fn search_without_query_includes_invocation() {
+    cargo_bin_cmd!("bagsy")
+        .args(["search"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("bagsy search routing"));
+}
+
+#[test]
+fn server_list_and_search() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let tok = mint(&root, "reader");
+    let serve = start_serve(&root);
+    cargo_bin_cmd!("bagsy")
+        .env("BAGSY_URL", &serve.url)
+        .env("BAGSY_TOKEN", &tok)
+        .args(["list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("concepts/brain.md"));
+    cargo_bin_cmd!("bagsy")
+        .env("BAGSY_URL", &serve.url)
+        .env("BAGSY_TOKEN", &tok)
+        .args(["search", "Routing"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("concepts/routing.md"));
 }
 
 #[test]

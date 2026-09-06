@@ -11,7 +11,7 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 | Who | Runs | Needs |
 |-----|------|--------|
 | **KB owner** | `bagsy init`, `bagsy serve`, `bagsy token` | The data directory |
-| **Agent** | `get` `propose` `lint` | `BAGSY_URL` + `BAGSY_TOKEN` |
+| **Agent** | `list` `search` `get` `propose` `lint` | `BAGSY_URL` + `BAGSY_TOKEN` |
 | **Gardener** | not the CLI | Git history / remote checkout — can delete or rewrite there |
 
 `/template` is a **demo seed**, not a production KB.
@@ -28,7 +28,7 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 - **Product:** wiki, not a PR factory. `propose` creates or overwrites one `concepts/**/*.md` file and commits. Last write wins; git still has the previous commit.
 - **Hard rule:** the CLI cannot delete knowledge (no `delete` command; HTTP DELETE is rejected).
 - **Hard rule:** agents do not clone or push the KB. They talk HTTP.
-- **Commands:** `init` / `serve` / `token` (owner); `get` `propose --file` `lint` (agents).
+- **Commands:** `init` / `serve` / `token` (owner); `list` `search` `get` `propose --file` `lint` (agents).
 
 ## Mental model
 
@@ -37,7 +37,7 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 | `concepts/*.md` | OKF concepts on the **server disk** |
 | git in the data dir | History; optional `serve --push` to a remote |
 | `.bagsy/tokens.toml` | Hashed per-agent tokens (owner-only) |
-| `bagsy serve --bind …` | HTTP API (`/health`, `/v1/concepts`, `/v1/proposals`, `/v1/lint`) |
+| `bagsy serve --bind …` | HTTP API (`/health`, `/v1/concepts`, `/v1/pages`, `/v1/proposals`, `/v1/lint`) |
 
 **Flow:** owner `init` + `token create` + `serve` → agent `get` → edit a local copy → `propose --file`.
 
@@ -57,11 +57,13 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 
 | Command | When to use |
 |---------|-------------|
-| `bagsy get <concept>` | Read |
+| `bagsy list` | Paths + titles (no bodies) |
+| `bagsy search <query>` | Filter list by path/title/tags/body |
+| `bagsy get <concept>` | Read raw markdown |
 | `bagsy propose <concept> --file <md>` | Create or update one page (never deletes) |
 | `bagsy lint` | OKF frontmatter |
 
-`--url` / `BAGSY_URL` and `--token` / `BAGSY_TOKEN` select the server. Without them, `get`/`lint`/`propose` operate on `--root` (owner local mode).
+`--url` / `BAGSY_URL` and `--token` / `BAGSY_TOKEN` select the server on agent commands only. Without them, `list`/`search`/`get`/`lint`/`propose` operate on `--root` (owner local mode).
 
 `serve --push` / `--push-interval` optionally `git push` to `origin`. Hosting is the operator's choice.
 
@@ -71,8 +73,10 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 export BAGSY_URL=http://127.0.0.1:7432
 export BAGSY_TOKEN=bgy_…          # from the owner
 
+bagsy list
+bagsy search routing
 bagsy get brain
-# edit a local markdown file
+# stdout is the raw markdown (round-trips into propose)
 bagsy propose brain --file ./brain.md
 bagsy lint
 ```

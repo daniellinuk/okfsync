@@ -3,7 +3,9 @@
 use anyhow::{bail, Context, Result};
 use ureq::Error as UreqError;
 
-use crate::api::{ConceptResponse, ErrorBody, LintResponse, ProposeRequest, ProposeResponse};
+use crate::api::{
+    ConceptResponse, ErrorBody, LintResponse, PagesResponse, ProposeRequest, ProposeResponse,
+};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -27,6 +29,21 @@ impl Remote {
         read_json(
             self.auth(ureq::get(&format!("{}/v1/concepts", self.url)))
                 .query("path", concept)
+                .call(),
+        )
+    }
+
+    pub fn list_pages(&self) -> Result<PagesResponse> {
+        read_json(
+            self.auth(ureq::get(&format!("{}/v1/pages", self.url)))
+                .call(),
+        )
+    }
+
+    pub fn search_pages(&self, query: &str) -> Result<PagesResponse> {
+        read_json(
+            self.auth(ureq::get(&format!("{}/v1/pages", self.url)))
+                .query("q", query)
                 .call(),
         )
     }
@@ -62,8 +79,12 @@ pub fn from_opts(url: Option<&str>, token: Option<&str>) -> Result<Option<Remote
     let token = nonempty(token).or_else(|| nonempty_env("BAGSY_TOKEN"));
     match (url, token) {
         (None, None) => Ok(None),
-        (Some(_), None) => bail!("BAGSY_URL is set but BAGSY_TOKEN is missing"),
-        (None, Some(_)) => bail!("BAGSY_TOKEN is set but BAGSY_URL is missing"),
+        (Some(_), None) => bail!(
+            "BAGSY_TOKEN is missing (BAGSY_URL is set)\n  bagsy get <concept> --url http://127.0.0.1:7432 --token <token>\n  export BAGSY_TOKEN=<token>"
+        ),
+        (None, Some(_)) => bail!(
+            "BAGSY_URL is missing (BAGSY_TOKEN is set)\n  bagsy get <concept> --url http://127.0.0.1:7432 --token <token>\n  export BAGSY_URL=http://127.0.0.1:7432"
+        ),
         (Some(url), Some(token)) => Ok(Some(Remote::new(&url, &token))),
     }
 }

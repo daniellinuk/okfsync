@@ -136,6 +136,8 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
 
     step("lint (clean)", ["lint", "--root", workDir], {}, true);
     step("agent-a get brain", ["get", "brain"], envA, true);
+    step("agent-a list", ["list"], envA, true);
+    step("agent-a search brain", ["search", "brain"], envA, true);
     step("agent-a propose brain", ["propose", "brain", "--file", "a.md"], envA, true);
     step("agent-b propose brain", ["propose", "brain", "--file", "b.md"], envB, true);
     const got = step("agent-b get brain (latest)", ["get", "brain"], envB, true);
