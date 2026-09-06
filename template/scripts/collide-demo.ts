@@ -102,7 +102,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
     const ok = res.ok === expectOk;
     const detail = (res.stdout + res.stderr).trim();
     steps.push({ name, ok, detail });
-    return res;
+    return { ...res, detail };
   };
 
   try {
