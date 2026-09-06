@@ -14,8 +14,8 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use crate::api::{
-    ConceptResponse, ErrorBody, HealthResponse, LintResponse, ProposeRequest, ProposeResponse,
-    API_VERSION,
+    ConceptResponse, ErrorBody, HealthResponse, LintResponse, PagesResponse, ProposeRequest,
+    ProposeResponse, API_VERSION,
 };
 use crate::git;
 use crate::okf;
@@ -87,6 +87,27 @@ async fn get_concept(
         body: c.body,
         markdown: doc.markdown,
     }))
+}
+
+#[derive(Deserialize)]
+struct PagesQuery {
+    #[serde(default)]
+    q: Option<String>,
+}
+
+async fn list_pages(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(q): Query<PagesQuery>,
+) -> Result<Json<PagesResponse>, ApiError> {
+    let _agent = agent_from(&headers, &st.root)?;
+    let concepts = match q.q.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(query) => crate::okf::search_concepts(&st.root, query)
+            .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
+        None => crate::okf::summaries(&st.root)
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+    };
+    Ok(Json(PagesResponse { concepts }))
 }
 
 async fn post_proposal(
@@ -207,6 +228,7 @@ pub async fn run(
         .route("/health", get(health).delete(reject_delete))
         .route("/v1/health", get(health).delete(reject_delete))
         .route("/v1/concepts", get(get_concept).delete(reject_delete))
+        .route("/v1/pages", get(list_pages).delete(reject_delete))
         .route("/v1/proposals", post(post_proposal).delete(reject_delete))
         .route("/v1/lint", get(get_lint).delete(reject_delete))
         .fallback(fallback)
@@ -229,7 +251,7 @@ pub async fn run(
     } else {
         println!("bagsy serve listening on http://{local}");
         println!("  data dir: {}", root.display());
-        println!("  api:      /health  /v1/concepts|proposals|lint  (no delete)");
+        println!("  api:      /health  /v1/concepts|pages|proposals|lint  (no delete)");
         if n_active == 0 {
             println!(
                 "  tokens:   none (create with bagsy token create --agent <id> --root {})",

@@ -54,3 +54,18 @@ pub struct LintResponse {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
 }
+
+/// Index row for list/search (no body — get the page next).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConceptSummary {
+    pub rel: String,
+    pub r#type: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PagesResponse {
+    pub concepts: Vec<ConceptSummary>,
+}

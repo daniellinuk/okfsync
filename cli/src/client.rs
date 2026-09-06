@@ -3,7 +3,9 @@
 use anyhow::{bail, Context, Result};
 use ureq::Error as UreqError;
 
-use crate::api::{ConceptResponse, ErrorBody, LintResponse, ProposeRequest, ProposeResponse};
+use crate::api::{
+    ConceptResponse, ErrorBody, LintResponse, PagesResponse, ProposeRequest, ProposeResponse,
+};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -27,6 +29,21 @@ impl Remote {
         read_json(
             self.auth(ureq::get(&format!("{}/v1/concepts", self.url)))
                 .query("path", concept)
+                .call(),
+        )
+    }
+
+    pub fn list_pages(&self) -> Result<PagesResponse> {
+        read_json(
+            self.auth(ureq::get(&format!("{}/v1/pages", self.url)))
+                .call(),
+        )
+    }
+
+    pub fn search_pages(&self, query: &str) -> Result<PagesResponse> {
+        read_json(
+            self.auth(ureq::get(&format!("{}/v1/pages", self.url)))
+                .query("q", query)
                 .call(),
         )
     }

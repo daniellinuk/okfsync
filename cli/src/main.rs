@@ -10,13 +10,15 @@ mod get;
 mod git;
 mod init;
 mod lint;
+mod list;
 mod okf;
 mod propose;
 mod server;
 mod token;
 
 use anyhow::{bail, Context, Result};
-use clap::{Parser, Subcommand};
+use clap::error::ErrorKind;
+use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use std::fs;
 use std::io::{IsTerminal, Read};
@@ -33,6 +35,8 @@ Agents talk to `bagsy serve` over HTTP with a per-agent bearer token.\n\
 The CLI can read and propose (create/update) concepts. It cannot delete.\n\
 The KB owner runs init/serve/token on the data directory. Gardening is out of band.",
     after_help = "Examples:
+  bagsy list --help
+  bagsy search --help
   bagsy get --help
   bagsy propose --help
   bagsy lint --help
@@ -45,16 +49,25 @@ struct Cli {
     #[arg(long, global = true, env = "BAGSY_ROOT")]
     root: Option<PathBuf>,
 
-    /// Bagsy server URL (agent mode). Example: http://127.0.0.1:7432
-    #[arg(long, global = true, env = "BAGSY_URL")]
-    url: Option<String>,
-
-    /// Bearer token issued by `bagsy token create` (agent mode).
-    #[arg(long, global = true, env = "BAGSY_TOKEN")]
-    token: Option<String>,
-
     #[command(subcommand)]
     command: Commands,
+}
+
+/// Server connection (agent commands only). Env: BAGSY_URL, BAGSY_TOKEN.
+#[derive(Debug, Clone, Args)]
+struct ServerOpts {
+    /// Bagsy server URL (agent mode). Example: http://127.0.0.1:7432
+    #[arg(long, env = "BAGSY_URL")]
+    url: Option<String>,
+    /// Bearer token issued by `bagsy token create` (agent mode)
+    #[arg(long, env = "BAGSY_TOKEN")]
+    token: Option<String>,
+}
+
+impl ServerOpts {
+    fn remote(&self) -> Result<Option<client::Remote>> {
+        client::from_opts(self.url.as_deref(), self.token.as_deref())
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -96,6 +109,32 @@ enum Commands {
         #[command(subcommand)]
         cmd: TokenCmd,
     },
+    /// List concept paths and titles (no bodies).
+    #[command(after_help = "Examples:
+  bagsy list
+  bagsy list --json
+  bagsy list --url http://127.0.0.1:7432 --token \"$BAGSY_TOKEN\"")]
+    List {
+        /// Machine-readable JSON on stdout
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        server: ServerOpts,
+    },
+    /// Search path, title, tags, and body; prints summaries (then get).
+    #[command(after_help = "Examples:
+  bagsy search routing
+  bagsy search \"shared brain\" --json
+  bagsy search routing --url http://127.0.0.1:7432 --token \"$BAGSY_TOKEN\"")]
+    Search {
+        /// Substring to match (quote multi-word queries)
+        query: Option<String>,
+        /// Machine-readable JSON on stdout
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        server: ServerOpts,
+    },
     /// Read a concept (raw markdown, round-trips into propose).
     #[command(after_help = "Examples:
   bagsy get brain
@@ -104,10 +143,12 @@ enum Commands {
   bagsy get brain > /tmp/brain.md")]
     Get {
         /// Concept path, e.g. brain or concepts/brain.md
-        concept: String,
+        concept: Option<String>,
         /// Machine-readable JSON (includes `markdown` for propose)
         #[arg(long)]
         json: bool,
+        #[command(flatten)]
+        server: ServerOpts,
     },
     /// Create or update a concept (never deletes). Server commits on its clone.
     #[command(after_help = "Examples:
@@ -118,7 +159,7 @@ enum Commands {
   bagsy propose brain --file ./brain.md --json")]
     Propose {
         /// Concept path
-        concept: String,
+        concept: Option<String>,
         /// Markdown file, or `-` for stdin
         #[arg(short, long, value_name = "FILE")]
         file: Option<PathBuf>,
@@ -137,6 +178,8 @@ enum Commands {
         /// Machine-readable JSON on stdout
         #[arg(long)]
         json: bool,
+        #[command(flatten)]
+        server: ServerOpts,
     },
     /// Lint OKF concepts (frontmatter).
     #[command(after_help = "Examples:
@@ -150,6 +193,8 @@ enum Commands {
         /// Machine-readable JSON on stdout
         #[arg(long)]
         json: bool,
+        #[command(flatten)]
+        server: ServerOpts,
     },
 }
 
@@ -163,7 +208,7 @@ enum TokenCmd {
     Create {
         /// Agent id (one active token unless --rotate)
         #[arg(long)]
-        agent: String,
+        agent: Option<String>,
         /// Replace any existing active token for this agent
         #[arg(long)]
         rotate: bool,
@@ -201,10 +246,73 @@ enum TokenCmd {
     },
 }
 
+fn parse_cli() -> Cli {
+    match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(e) => match e.kind() {
+            ErrorKind::DisplayHelp
+            | ErrorKind::DisplayVersion
+            | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => e.exit(),
+            _ => {
+                let _ = e.print();
+                if let Some(hint) = argv_hint() {
+                    eprintln!("{hint}");
+                }
+                std::process::exit(2);
+            }
+        },
+    }
+}
+
+fn argv_hint() -> Option<String> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let has = |name: &str| args.iter().any(|a| a == name);
+    if has("help") {
+        return None;
+    }
+    let hint = if has("get") {
+        "  bagsy get brain\n  bagsy list\n  bagsy get --help"
+    } else if has("propose") {
+        "  bagsy propose brain --file ./brain.md\n  bagsy propose --help"
+    } else if has("search") {
+        "  bagsy search routing\n  bagsy list\n  bagsy search --help"
+    } else if has("list") {
+        "  bagsy list\n  bagsy list --json\n  bagsy list --help"
+    } else if has("create") && has("token") {
+        "  bagsy token create --agent worker-1\n  bagsy token create --help"
+    } else if has("revoke") && has("token") {
+        "  bagsy token revoke --agent worker-1\n  bagsy token list"
+    } else if has("token") {
+        "  bagsy token list\n  bagsy token --help"
+    } else if has("lint") {
+        "  bagsy lint\n  bagsy lint --json\n  bagsy lint --help"
+    } else if has("serve") {
+        "  bagsy serve --root ./my-kb\n  bagsy serve --help"
+    } else if has("init") {
+        "  bagsy init --root ./my-kb\n  bagsy init --help"
+    } else {
+        "  bagsy list --help\n  bagsy get --help\n  bagsy --help"
+    };
+    Some(hint.into())
+}
+
+fn require_concept(concept: Option<String>, for_cmd: &str) -> Result<String> {
+    match concept {
+        Some(c) if !c.trim().is_empty() => Ok(c),
+        _ => match for_cmd {
+            "propose" => bail!(
+                "concept path required\n  bagsy propose brain --file ./brain.md\n  bagsy list\n  bagsy propose --help"
+            ),
+            _ => bail!(
+                "concept path required\n  bagsy get brain\n  bagsy list\n  bagsy get --help"
+            ),
+        },
+    }
+}
+
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = parse_cli();
     let root = config::resolve_root(cli.root.as_deref())?;
-    let remote = client::from_opts(cli.url.as_deref(), cli.token.as_deref())?;
 
     match cli.command {
         Commands::Init { json } => init::run(&root, json),
@@ -222,8 +330,37 @@ fn main() -> Result<()> {
             server::run_blocking(root, addr, push, push_interval, json)
         }
         Commands::Token { cmd } => token_cmd(&root, cmd),
-        Commands::Get { concept, json } => {
-            if let Some(r) = remote {
+        Commands::List { json, server } => {
+            if let Some(r) = server.remote()? {
+                list::print_pages(&r.list_pages()?.concepts, json)
+            } else {
+                list::run_list(&root, json)
+            }
+        }
+        Commands::Search {
+            query,
+            json,
+            server,
+        } => {
+            let query = match query {
+                Some(q) if !q.trim().is_empty() => q,
+                _ => bail!(
+                    "search query required\n  bagsy search routing\n  bagsy list\n  bagsy search --help"
+                ),
+            };
+            if let Some(r) = server.remote()? {
+                list::print_search_hits(&r.search_pages(&query)?.concepts, json)
+            } else {
+                list::run_search(&root, &query, json)
+            }
+        }
+        Commands::Get {
+            concept,
+            json,
+            server,
+        } => {
+            let concept = require_concept(concept, "get")?;
+            if let Some(r) = server.remote()? {
                 get::print_response(&r.get_concept(&concept)?, json)
             } else {
                 get::run(&root, &concept, json)
@@ -237,7 +374,10 @@ fn main() -> Result<()> {
             agent,
             dry_run,
             json,
+            server,
         } => {
+            let concept = require_concept(concept, "propose")?;
+            let remote = server.remote()?;
             let markdown = read_propose_markdown(file.as_deref())?;
             if dry_run {
                 let rel = okf::validate_propose(&concept, &markdown)?;
@@ -283,8 +423,12 @@ fn main() -> Result<()> {
                 propose::print_outcome(&out, &agent, json)
             }
         }
-        Commands::Lint { strict, json } => {
-            if let Some(r) = remote {
+        Commands::Lint {
+            strict,
+            json,
+            server,
+        } => {
+            if let Some(r) = server.remote()? {
                 let report = r.lint(strict)?;
                 lint::print_report(&report, json)?;
                 if lint::failed(&report, strict) {
@@ -338,6 +482,12 @@ fn token_cmd(root: &Path, cmd: TokenCmd) -> Result<()> {
             rotate,
             json,
         } => {
+            let agent = match agent {
+                Some(a) if !a.trim().is_empty() => a,
+                _ => bail!(
+                    "agent id required\n  bagsy token create --agent worker-1\n  bagsy token create --agent worker-1 --json"
+                ),
+            };
             let issued = token::create(root, &agent, rotate)?;
             if json {
                 println!("{}", serde_json::to_string(&issued).context("json token")?);
