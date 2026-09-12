@@ -19,6 +19,24 @@ function platformKey() {
   return `${plat}-${arch}`;
 }
 
+function packageVersion() {
+  return require("../package.json").version;
+}
+
+/** vendor/okfsync-linux-x64-0.1.2 — version in the name so upgrades cannot keep a stale kbsync. */
+function vendorArtifactName() {
+  const pkg = PLATFORM_MAP[platformKey()];
+  if (!pkg) return null;
+  const version = packageVersion();
+  return process.platform === "win32" ? `${pkg}-${version}.exe` : `${pkg}-${version}`;
+}
+
+function vendorBinaryPath() {
+  const name = vendorArtifactName();
+  if (!name) return null;
+  return path.join(__dirname, "..", "vendor", name);
+}
+
 function candidatePaths() {
   const out = [];
   if (process.env.KBSYNC_BIN) {
@@ -38,9 +56,8 @@ function candidatePaths() {
     }
   }
 
-  // Vendor dir populated by postinstall download
-  const vendor = path.join(__dirname, "..", "vendor", process.platform === "win32" ? "kbsync.exe" : "kbsync");
-  out.push(vendor);
+  const vendor = vendorBinaryPath();
+  if (vendor) out.push(vendor);
 
   // Monorepo local release / debug builds
   const repoRoot = path.resolve(__dirname, "..", "..");
@@ -79,6 +96,9 @@ function installHint() {
 module.exports = {
   PLATFORM_MAP,
   platformKey,
+  packageVersion,
+  vendorArtifactName,
+  vendorBinaryPath,
   candidatePaths,
   resolveBinary,
   installHint,

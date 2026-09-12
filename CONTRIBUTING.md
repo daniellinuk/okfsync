@@ -29,3 +29,11 @@ cargo test --manifest-path cli/Cargo.toml
 cargo build --release --manifest-path cli/Cargo.toml
 cargo clippy --manifest-path cli/Cargo.toml --all-targets -- -D warnings
 ```
+
+Publish npm (Linux x64 tarball; `kbsync -V` must match `npm/package.json`):
+
+```bash
+# keep cli/Cargo.toml version == npm/package.json version
+node npm/scripts/prepare-binary.js
+cd npm && npm publish --access public
+```

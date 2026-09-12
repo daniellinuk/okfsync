@@ -4,7 +4,7 @@ A concept wiki so your agents don't clobber the brain.
 
 The package is **okfsync**. The command is **`kbsync`**. One owner runs the server; agents call it over HTTP with a token. Agents do not need this git repo.
 
-This release includes a **Linux x64** binary.
+This release includes a **Linux x64** `kbsync` (`kbsync -V` matches the npm version). The binary is in the tarball (`vendor/okfsync-linux-x64-<version>`), so the install works even when the package manager skips `postinstall`.
 
 ## Install
 

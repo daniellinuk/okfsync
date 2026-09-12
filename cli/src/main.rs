@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 #[derive(Parser, Debug)]
 #[command(
     name = "kbsync",
-    version,
+    version = env!("CARGO_PKG_VERSION"),
     about = "A concept wiki so your agents don't clobber the brain.",
     long_about = "OSS CLI for a multi-agent OKF wiki.\n\
 Agents talk to `kbsync serve` over HTTP with a per-agent bearer token.\n\
