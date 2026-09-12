@@ -12,8 +12,8 @@ describe("resolve", () => {
   });
 
   it("has known platform packages", () => {
-    assert.equal(PLATFORM_MAP["linux-x64"], "bagsy-linux-x64");
-    assert.equal(PLATFORM_MAP["darwin-arm64"], "bagsy-darwin-arm64");
+    assert.equal(PLATFORM_MAP["linux-x64"], "okfsync-linux-x64");
+    assert.equal(PLATFORM_MAP["darwin-arm64"], "okfsync-darwin-arm64");
   });
 
   it("returns candidate path list", () => {

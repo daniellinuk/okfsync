@@ -1,26 +1,28 @@
-# Agent instructions — bagsy
+# Agent instructions — okfsync
 
 Canonical instructions for coding agents working in this repo.
 
-## What bagsy is
+## What okfsync is
 
-**Bagsy a concept so your agents don't clobber the brain.**
+**A concept wiki so your agents don't clobber the brain.**
 
-A wiki CLI: agents call `bagsy serve` with per-agent bearer tokens. The server holds OKF markdown; git on that disk is history. Agents do not need the git repo.
+A wiki CLI: agents call `kbsync serve` with per-agent bearer tokens. The server holds OKF markdown; git on that disk is history. Agents do not need the git repo.
+
+The GitHub repo and npm package are **okfsync**. The terminal command is **kbsync**.
 
 The CLI **cannot delete** knowledge. Gardening (dedupe, drop junk) is a separate role and does not use this CLI.
 
 Typical **owner** flow:
 
-1. `bagsy init --root <data-dir>`
-2. `bagsy token create --agent <id>`
-3. `bagsy serve --root <data-dir> [--bind 127.0.0.1:7432]`
+1. `kbsync init --root <data-dir>`
+2. `kbsync token create --agent <id>`
+3. `kbsync serve --root <data-dir> [--bind 127.0.0.1:7432]`
 
 Typical **worker** flow:
 
-1. `BAGSY_URL` + `BAGSY_TOKEN`
-2. `bagsy list` / `bagsy search <query>` → `bagsy get brain > brain.md` → edit → `bagsy propose brain --file brain.md`
-3. `bagsy lint`
+1. `KBSYNC_URL` + `KBSYNC_TOKEN`
+2. `kbsync list` / `kbsync search <query>` → `kbsync get brain > brain.md` → edit → `kbsync propose brain --file brain.md`
+3. `kbsync lint`
 
 `--url` / `--token` exist only on agent commands (`list` `search` `get` `propose` `lint`), not on `init`/`serve`/`token`.
 
@@ -30,7 +32,7 @@ Typical **worker** flow:
 
 | Path | Role |
 |------|------|
-| `/cli` | Rust CLI + `bagsy serve` |
+| `/cli` | Rust CLI + `kbsync serve` |
 | `/npm` | Thin JS wrapper + prebuilt binary resolution |
 | `/template` | Minimal OKF concepts + wiki demo |
 | root | Bun monorepo (`package.json` workspaces: `npm`, `template`) |
@@ -40,7 +42,7 @@ Typical **worker** flow:
 - **CLI + server:** Rust (`cli/`)
 - **Distribute:** npm package with prebuilds / binary resolution (`npm/`)
 - **Scripts / monorepo:** Bun
-- **No PyPI.** **No Node reimplementation** of bagsy.
+- **No PyPI.** **No Node reimplementation** of okfsync.
 
 ## Build / test
 
@@ -61,7 +63,7 @@ Keep the wiki demo green (`bun run demo` / `bun run test:template`).
 
 Owner: `init`, `serve`, `token create|list|revoke`.
 
-Agents: `list`, `search`, `get`, `propose --file`, `lint` with `BAGSY_URL` + `BAGSY_TOKEN`.
+Agents: `list`, `search`, `get`, `propose --file`, `lint` with `KBSYNC_URL` + `KBSYNC_TOKEN`.
 
 Token identity wins over `--agent` in server mode.
 
@@ -69,7 +71,7 @@ Token identity wins over `--agent` in server mode.
 
 - Propose only creates/updates `concepts/**/*.md`.
 - No delete command; HTTP DELETE is rejected.
-- Tokens: `.bagsy/tokens.toml` stores hashes only.
+- Tokens: `.okfsync/tokens.toml` stores hashes only.
 
 ## Working rules for agents in this repo
 

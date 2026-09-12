@@ -20,9 +20,9 @@ fn write_concept(root: &Path, rel: &str, body: &str) {
 
 fn init_okf(tmp: &TempDir) -> PathBuf {
     let root = tmp.path().to_path_buf();
-    fs::create_dir_all(root.join(".bagsy")).unwrap();
+    fs::create_dir_all(root.join(".okfsync")).unwrap();
     fs::write(
-        root.join(".bagsy/config.toml"),
+        root.join(".okfsync/config.toml"),
         "default_branch = \"main\"\n",
     )
     .unwrap();
@@ -61,10 +61,10 @@ fn init_git(root: &Path) {
         let status = Command::new("git")
             .args(args)
             .current_dir(root)
-            .env("GIT_AUTHOR_NAME", "bagsy")
-            .env("GIT_AUTHOR_EMAIL", "bagsy@example.com")
-            .env("GIT_COMMITTER_NAME", "bagsy")
-            .env("GIT_COMMITTER_EMAIL", "bagsy@example.com")
+            .env("GIT_AUTHOR_NAME", "okfsync")
+            .env("GIT_AUTHOR_EMAIL", "okfsync@example.com")
+            .env("GIT_COMMITTER_NAME", "okfsync")
+            .env("GIT_COMMITTER_EMAIL", "okfsync@example.com")
             .status()
             .unwrap();
         assert!(status.success(), "git {args:?} failed");
@@ -98,7 +98,7 @@ fn start_serve(root: &Path) -> Serve {
     let port = free_port();
     let bind = format!("127.0.0.1:{port}");
     let url = format!("http://{bind}");
-    let bin = cargo_bin("bagsy");
+    let bin = cargo_bin("kbsync");
     let mut child = Command::new(&bin)
         .args(["serve", "--root"])
         .arg(root)
@@ -132,7 +132,7 @@ fn start_serve(root: &Path) -> Serve {
 }
 
 fn mint(root: &Path, agent: &str) -> String {
-    let out = cargo_bin_cmd!("bagsy")
+    let out = cargo_bin_cmd!("kbsync")
         .current_dir(root)
         .args(["token", "create", "--agent", agent, "--json"])
         .assert()
@@ -148,7 +148,7 @@ fn mint(root: &Path, agent: &str) -> String {
 fn get_prints_concept_locally() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["get", "brain"])
         .assert()
@@ -162,7 +162,7 @@ fn get_prints_concept_locally() {
 fn lint_passes_clean_bundle() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["lint"])
         .assert()
@@ -175,7 +175,7 @@ fn lint_fails_on_bad_frontmatter() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     write_concept(&root, "concepts/broken.md", "# no frontmatter\n");
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["lint"])
         .assert()
@@ -192,7 +192,7 @@ fn parse_frontmatter_unit() {
         "concepts/nested/deep.md",
         "---\ntype: Reference\ntitle: Deep\n---\n\nBody.\n",
     );
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["get", "concepts/nested/deep"])
         .assert()
@@ -205,15 +205,15 @@ fn token_create_list_revoke() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     let token = mint(&root, "alice");
-    assert!(token.starts_with("bgy_"));
-    cargo_bin_cmd!("bagsy")
+    assert!(token.starts_with("kbs_"));
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["token", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("alice"))
         .stdout(predicate::str::contains("active"));
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["token", "revoke", "--agent", "alice"])
         .assert()
@@ -235,7 +235,7 @@ fn help_includes_examples() {
         vec!["init", "--help"],
         vec!["serve", "--help"],
     ] {
-        cargo_bin_cmd!("bagsy")
+        cargo_bin_cmd!("kbsync")
             .args(&args)
             .assert()
             .success()
@@ -248,7 +248,7 @@ fn get_round_trips_into_propose() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     init_git(&root);
-    let out = cargo_bin_cmd!("bagsy")
+    let out = cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["get", "brain"])
         .assert()
@@ -258,7 +258,7 @@ fn get_round_trips_into_propose() {
         .clone();
     let md = root.join("roundtrip.md");
     fs::write(&md, &out).unwrap();
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["propose", "brain", "--file"])
         .arg(&md)
@@ -272,13 +272,13 @@ fn propose_reads_stdin() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     init_git(&root);
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["propose", "brain", "--file", "-"])
         .write_stdin("---\ntype: Playbook\ntitle: Shared Brain\n---\n\nFrom stdin.\n")
         .assert()
         .success();
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["get", "brain"])
         .assert()
@@ -290,7 +290,7 @@ fn propose_reads_stdin() {
 fn get_json_includes_markdown() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
-    let out = cargo_bin_cmd!("bagsy")
+    let out = cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["get", "brain", "--json"])
         .assert()
@@ -305,18 +305,18 @@ fn get_json_includes_markdown() {
 
 #[test]
 fn missing_token_error_includes_invocation() {
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", "http://127.0.0.1:9")
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", "http://127.0.0.1:9")
         .args(["get", "brain"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("bagsy get"))
+        .stderr(predicate::str::contains("kbsync get"))
         .stderr(predicate::str::contains("--token"));
 }
 
 #[test]
 fn token_revoke_without_target_includes_invocation() {
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["token", "revoke"])
         .assert()
         .failure()
@@ -328,7 +328,7 @@ fn propose_dry_run_does_not_write() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     let original = fs::read_to_string(root.join("concepts/brain.md")).unwrap();
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["propose", "brain", "--file", "-", "--dry-run"])
         .write_stdin("---\ntype: Playbook\ntitle: Shared Brain\n---\n\nWould not save.\n")
@@ -346,12 +346,12 @@ fn token_revoke_is_idempotent() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     mint(&root, "alice");
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["token", "revoke", "--agent", "alice"])
         .assert()
         .success();
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["token", "revoke", "--agent", "alice"])
         .assert()
@@ -361,16 +361,16 @@ fn token_revoke_is_idempotent() {
 
 #[test]
 fn get_without_concept_includes_invocation() {
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["get"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("bagsy get brain"));
+        .stderr(predicate::str::contains("kbsync get brain"));
 }
 
 #[test]
 fn token_create_without_agent_includes_invocation() {
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["token", "create"])
         .assert()
         .failure()
@@ -379,23 +379,23 @@ fn token_create_without_agent_includes_invocation() {
 
 #[test]
 fn url_token_flags_are_agent_only() {
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["init", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("--root"))
         .stdout(predicate::str::contains("--url").not());
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["serve", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("--url").not());
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["token", "list", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("--url").not());
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["get", "--help"])
         .assert()
         .success()
@@ -407,8 +407,8 @@ fn url_token_flags_are_agent_only() {
 fn init_ignores_agent_url_env() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", "http://127.0.0.1:9")
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", "http://127.0.0.1:9")
         .args(["init", "--root"])
         .arg(root)
         .assert()
@@ -420,21 +420,21 @@ fn init_ignores_agent_url_env() {
 fn list_and_search_concepts() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("concepts/brain.md"))
         .stdout(predicate::str::contains("concepts/routing.md"));
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["search", "routing"])
         .assert()
         .success()
         .stdout(predicate::str::contains("concepts/routing.md"))
         .stdout(predicate::str::contains("concepts/brain.md").not());
-    let out = cargo_bin_cmd!("bagsy")
+    let out = cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["list", "--json"])
         .assert()
@@ -448,11 +448,11 @@ fn list_and_search_concepts() {
 
 #[test]
 fn search_without_query_includes_invocation() {
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .args(["search"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("bagsy search routing"));
+        .stderr(predicate::str::contains("kbsync search routing"));
 }
 
 #[test]
@@ -461,16 +461,16 @@ fn server_list_and_search() {
     let root = init_okf(&tmp);
     let tok = mint(&root, "reader");
     let serve = start_serve(&root);
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
         .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("concepts/brain.md"));
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
         .args(["search", "Routing"])
         .assert()
         .success()
@@ -480,7 +480,7 @@ fn server_list_and_search() {
 #[test]
 fn claim_release_delete_gardener_are_not_commands() {
     for cmd in ["claim", "release", "delete", "gardener"] {
-        cargo_bin_cmd!("bagsy")
+        cargo_bin_cmd!("kbsync")
             .args([cmd, "brain"])
             .assert()
             .failure()
@@ -503,9 +503,9 @@ fn server_propose_updates_without_claim() {
     )
     .unwrap();
 
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok_a)
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok_a)
         .args(["propose", "brain", "--file"])
         .arg(&md)
         .assert()
@@ -517,17 +517,17 @@ fn server_propose_updates_without_claim() {
         "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nUpdated by B.\n",
     )
     .unwrap();
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok_b)
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok_b)
         .args(["propose", "brain", "--file"])
         .arg(&md)
         .assert()
         .success();
 
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok_b)
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok_b)
         .args(["get", "brain"])
         .assert()
         .success()
@@ -540,7 +540,7 @@ fn propose_refuses_path_traversal() {
     let root = init_okf(&tmp);
     let md = root.join("evil.md");
     fs::write(&md, "---\ntype: Playbook\ntitle: X\n---\n\nnope\n").unwrap();
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["propose", "--file"])
         .arg(&md)
@@ -606,7 +606,7 @@ fn propose_does_not_delete_other_concepts() {
         "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nStill here.\n",
     )
     .unwrap();
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["propose", "brain", "--file"])
         .arg(&md)
@@ -622,15 +622,15 @@ fn server_rejects_revoked_token() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
     let tok = mint(&root, "ghost");
-    cargo_bin_cmd!("bagsy")
+    cargo_bin_cmd!("kbsync")
         .current_dir(&root)
         .args(["token", "revoke", "--agent", "ghost"])
         .assert()
         .success();
     let serve = start_serve(&root);
-    cargo_bin_cmd!("bagsy")
-        .env("BAGSY_URL", &serve.url)
-        .env("BAGSY_TOKEN", &tok)
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
         .args(["get", "brain"])
         .assert()
         .failure()

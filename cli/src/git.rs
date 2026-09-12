@@ -52,7 +52,7 @@ pub fn commit_paths(root: &Path, paths: &[&Path], message: &str, agent: &str) ->
     for p in paths {
         if !p.is_file() {
             bail!(
-                "refusing to stage missing path (bagsy never deletes): {}",
+                "refusing to stage missing path (kbsync never deletes): {}",
                 p.display()
             );
         }
@@ -89,9 +89,9 @@ pub fn commit_paths(root: &Path, paths: &[&Path], message: &str, agent: &str) ->
     let output = cmd
         .current_dir(root)
         .env("GIT_AUTHOR_NAME", agent)
-        .env("GIT_AUTHOR_EMAIL", format!("{agent}@bagsy.local"))
+        .env("GIT_AUTHOR_EMAIL", format!("{agent}@okfsync.local"))
         .env("GIT_COMMITTER_NAME", agent)
-        .env("GIT_COMMITTER_EMAIL", format!("{agent}@bagsy.local"))
+        .env("GIT_COMMITTER_EMAIL", format!("{agent}@okfsync.local"))
         .output()
         .context("git commit")?;
     if !output.status.success() {

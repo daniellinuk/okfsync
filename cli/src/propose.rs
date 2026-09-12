@@ -44,7 +44,7 @@ pub fn run(
     let path: PathBuf = root.join(&written.rel);
     let msg = title
         .map(|t| t.to_string())
-        .unwrap_or_else(|| format!("bagsy: {} updated {}", agent, written.rel));
+        .unwrap_or_else(|| format!("okfsync: {} updated {}", agent, written.rel));
     let committed = git::commit_paths(root, &[path.as_path()], &msg, agent)?;
     let mut pushed = false;
     if push && committed && git::has_remote(root, "origin") {

@@ -14,5 +14,5 @@ The only required frontmatter field is `type`.
 
 Optional: `title`, `description`, `tags`, `resource`, `timestamp`.
 
-bagsy will not delete concepts via the CLI. Git on the server is history.
+okfsync will not delete concepts via the CLI. Git on the server is history.
 

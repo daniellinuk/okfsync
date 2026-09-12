@@ -2,7 +2,7 @@
 
 /**
  * postinstall — for published releases, download the matching prebuilt binary
- * into npm/vendor/. In the monorepo (or when BAGSY_SKIP_DOWNLOAD=1), no-op if
+ * into npm/vendor/. In the monorepo (or when KBSYNC_SKIP_DOWNLOAD=1), no-op if
  * a local cargo build already satisfies resolveBinary().
  */
 
@@ -12,12 +12,12 @@ const https = require("node:https");
 const { resolveBinary, platformKey, PLATFORM_MAP } = require("./resolve");
 
 const RELEASE_BASE =
-  process.env.BAGSY_RELEASE_BASE ||
-  "https://github.com/bagsy-dev/bagsy/releases/download";
+  process.env.KBSYNC_RELEASE_BASE ||
+  "https://github.com/okfsync-dev/okfsync/releases/download";
 
 function log(msg) {
-  if (process.env.BAGSY_INSTALL_SILENT === "1") return;
-  console.log(`[bagsy] ${msg}`);
+  if (process.env.KBSYNC_INSTALL_SILENT === "1") return;
+  console.log(`[okfsync] ${msg}`);
 }
 
 function download(url, dest) {
@@ -47,8 +47,8 @@ function download(url, dest) {
 }
 
 async function main() {
-  if (process.env.BAGSY_SKIP_DOWNLOAD === "1") {
-    log("BAGSY_SKIP_DOWNLOAD=1 — skipping binary download");
+  if (process.env.KBSYNC_SKIP_DOWNLOAD === "1") {
+    log("KBSYNC_SKIP_DOWNLOAD=1 — skipping binary download");
     return;
   }
 
@@ -75,7 +75,7 @@ async function main() {
   fs.mkdirSync(vendorDir, { recursive: true });
   const dest = path.join(
     vendorDir,
-    process.platform === "win32" ? "bagsy.exe" : "bagsy"
+    process.platform === "win32" ? "kbsync.exe" : "kbsync"
   );
 
   log(`downloading ${url}`);
@@ -85,13 +85,13 @@ async function main() {
     log(`installed to ${dest}`);
   } catch (err) {
     log(`download skipped/failed: ${err.message}`);
-    log("build the Rust CLI in /cli or set BAGSY_BIN");
+    log("build the Rust CLI in /cli or set KBSYNC_BIN");
   }
 }
 
 if (require.main === module) {
   main().catch((err) => {
-    console.error(`[bagsy] install warning: ${err.message}`);
+    console.error(`[okfsync] install warning: ${err.message}`);
     // Never fail install — wrapper can still use monorepo binary
     process.exit(0);
   });

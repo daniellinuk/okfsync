@@ -88,7 +88,7 @@ pub fn load_document(root: &Path, concept: &str) -> Result<Document> {
     let path = root.join(&rel);
     ensure_under_concepts(root, &path)?;
     if !path.exists() {
-        bail!("concept not found: {rel}\n  bagsy list\n  bagsy search <query>\n  bagsy get brain");
+        bail!("concept not found: {rel}\n  kbsync list\n  kbsync search <query>\n  kbsync get brain");
     }
     let markdown =
         fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
@@ -203,7 +203,7 @@ pub fn summaries(root: &Path) -> Result<Vec<crate::api::ConceptSummary>> {
 pub fn search_concepts(root: &Path, query: &str) -> Result<Vec<crate::api::ConceptSummary>> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
-        bail!("search query required\n  bagsy search routing\n  bagsy list");
+        bail!("search query required\n  kbsync search routing\n  kbsync list");
     }
     let mut hits = Vec::new();
     for path in list_concepts(root)? {

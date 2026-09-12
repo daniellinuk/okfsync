@@ -1,5 +1,5 @@
 /**
- * Template lint entry — prefers the bagsy binary, falls back to a tiny OKF check.
+ * Template lint entry — prefers the kbsync binary, falls back to a tiny OKF check.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -8,13 +8,13 @@ import { join } from "node:path";
 const root = join(import.meta.dir, "..");
 const repoRoot = join(root, "..");
 
-function findBagsy(): string | null {
-  if (process.env.BAGSY_BIN && existsSync(process.env.BAGSY_BIN)) {
-    return process.env.BAGSY_BIN;
+function findKbsync(): string | null {
+  if (process.env.KBSYNC_BIN && existsSync(process.env.KBSYNC_BIN)) {
+    return process.env.KBSYNC_BIN;
   }
   for (const p of [
-    join(repoRoot, "cli", "target", "release", "bagsy"),
-    join(repoRoot, "cli", "target", "debug", "bagsy"),
+    join(repoRoot, "cli", "target", "release", "kbsync"),
+    join(repoRoot, "cli", "target", "debug", "kbsync"),
   ]) {
     if (existsSync(p)) return p;
   }
@@ -62,7 +62,7 @@ function fallbackLint(): number {
   return errors;
 }
 
-const bin = findBagsy();
+const bin = findKbsync();
 if (bin) {
   const res = spawnSync(bin, ["lint", "--root", root], {
     encoding: "utf8",
@@ -70,6 +70,6 @@ if (bin) {
   });
   process.exit(res.status ?? 1);
 } else {
-  console.warn("bagsy binary not built — running fallback OKF lint");
+  console.warn("kbsync binary not built — running fallback OKF lint");
   process.exit(fallbackLint() === 0 ? 0 : 1);
 }

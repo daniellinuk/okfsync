@@ -3,23 +3,23 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "bagsy-monorepo",
+      "name": "okfsync-monorepo",
     },
     "npm": {
-      "name": "bagsy",
+      "name": "okfsync",
       "version": "0.1.0",
       "bin": {
-        "bagsy": "bin/bagsy.js",
+        "kbsync": "bin/kbsync.js",
       },
     },
     "template": {
-      "name": "@bagsy/template",
+      "name": "@okfsync/template",
       "version": "0.1.0",
     },
   },
   "packages": {
-    "@bagsy/template": ["@bagsy/template@workspace:template"],
+    "@okfsync/template": ["@okfsync/template@workspace:template"],
 
-    "bagsy": ["bagsy@workspace:npm"],
+    "okfsync": ["okfsync@workspace:npm"],
   }
 }

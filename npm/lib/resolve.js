@@ -5,11 +5,11 @@ const path = require("node:path");
 const os = require("node:os");
 
 const PLATFORM_MAP = {
-  "darwin-arm64": "bagsy-darwin-arm64",
-  "darwin-x64": "bagsy-darwin-x64",
-  "linux-x64": "bagsy-linux-x64",
-  "linux-arm64": "bagsy-linux-arm64",
-  "win32-x64": "bagsy-windows-x64",
+  "darwin-arm64": "okfsync-darwin-arm64",
+  "darwin-x64": "okfsync-darwin-x64",
+  "linux-x64": "okfsync-linux-x64",
+  "linux-arm64": "okfsync-linux-arm64",
+  "win32-x64": "okfsync-windows-x64",
 };
 
 function platformKey() {
@@ -21,17 +21,17 @@ function platformKey() {
 
 function candidatePaths() {
   const out = [];
-  if (process.env.BAGSY_BIN) {
-    out.push(process.env.BAGSY_BIN);
+  if (process.env.KBSYNC_BIN) {
+    out.push(process.env.KBSYNC_BIN);
   }
 
-  // Optional platform package (published alongside bagsy on npm)
+  // Optional platform package (published alongside okfsync on npm)
   const key = platformKey();
   const pkg = PLATFORM_MAP[key];
   if (pkg) {
     try {
       const pkgRoot = path.dirname(require.resolve(`${pkg}/package.json`));
-      const name = process.platform === "win32" ? "bagsy.exe" : "bagsy";
+      const name = process.platform === "win32" ? "kbsync.exe" : "kbsync";
       out.push(path.join(pkgRoot, "bin", name));
     } catch {
       // not installed
@@ -39,16 +39,16 @@ function candidatePaths() {
   }
 
   // Vendor dir populated by postinstall download
-  const vendor = path.join(__dirname, "..", "vendor", process.platform === "win32" ? "bagsy.exe" : "bagsy");
+  const vendor = path.join(__dirname, "..", "vendor", process.platform === "win32" ? "kbsync.exe" : "kbsync");
   out.push(vendor);
 
   // Monorepo local release / debug builds
   const repoRoot = path.resolve(__dirname, "..", "..");
-  out.push(path.join(repoRoot, "cli", "target", "release", "bagsy"));
-  out.push(path.join(repoRoot, "cli", "target", "debug", "bagsy"));
+  out.push(path.join(repoRoot, "cli", "target", "release", "kbsync"));
+  out.push(path.join(repoRoot, "cli", "target", "debug", "kbsync"));
   if (process.platform === "win32") {
-    out.push(path.join(repoRoot, "cli", "target", "release", "bagsy.exe"));
-    out.push(path.join(repoRoot, "cli", "target", "debug", "bagsy.exe"));
+    out.push(path.join(repoRoot, "cli", "target", "release", "kbsync.exe"));
+    out.push(path.join(repoRoot, "cli", "target", "debug", "kbsync.exe"));
   }
 
   return out;

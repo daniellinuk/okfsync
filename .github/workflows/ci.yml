@@ -32,7 +32,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - name: build bagsy
+      - name: build okfsync
         run: cargo build --release --manifest-path cli/Cargo.toml
       - name: lint template
         run: bun run --cwd template lint
@@ -50,4 +50,4 @@ jobs:
         working-directory: npm
         run: npm test
         env:
-          BAGSY_SKIP_DOWNLOAD: "1"
+          KBSYNC_SKIP_DOWNLOAD: "1"

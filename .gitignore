@@ -5,7 +5,7 @@ npm/vendor/
 .DS_Store
 *.swp
 .env
-.bagsy/tokens.toml
+.okfsync/tokens.toml
 dist/
 .turbo/
 *.log

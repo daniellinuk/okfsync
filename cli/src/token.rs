@@ -1,7 +1,7 @@
 //! Per-agent bearer tokens stored on the server data dir.
 //!
 //! The owner of the KB (whoever can write `--root`) creates and revokes tokens
-//! locally. Agents never see `.bagsy/tokens.toml` — only the one-time secret.
+//! locally. Agents never see `.okfsync/tokens.toml` — only the one-time secret.
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
@@ -11,14 +11,14 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const TOKENS_FILE: &str = ".bagsy/tokens.toml";
-const TOKEN_PREFIX: &str = "bgy";
+pub const TOKENS_FILE: &str = ".okfsync/tokens.toml";
+const TOKEN_PREFIX: &str = "kbs";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenRecord {
     pub id: String,
     pub agent: String,
-    /// Hex-encoded SHA-256 of the full token string (`bgy_<id>_<secret>`).
+    /// Hex-encoded SHA-256 of the full token string (`kbs_<id>_<secret>`).
     pub secret_hash: String,
     pub created_at: DateTime<Utc>,
     #[serde(default)]
@@ -102,7 +102,7 @@ pub fn create(root: &Path, agent: &str, rotate: bool) -> Result<IssuedToken> {
         .collect();
     if !active.is_empty() && !rotate {
         bail!(
-            "agent '{agent}' already has an active token (id {}).\n  bagsy token create --agent {agent} --rotate\n  bagsy token revoke --agent {agent}",
+            "agent '{agent}' already has an active token (id {}).\n  kbsync token create --agent {agent} --rotate\n  kbsync token revoke --agent {agent}",
             active
                 .iter()
                 .map(|t| t.id.as_str())
@@ -150,7 +150,7 @@ pub fn revoke_by_id(root: &Path, id: &str, dry_run: bool) -> Result<(TokenRecord
         .find(|t| t.id == id)
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "no token with id '{id}'\n  bagsy token list\n  bagsy token revoke --id <token-id>"
+                "no token with id '{id}'\n  kbsync token list\n  kbsync token revoke --id <token-id>"
             )
         })?;
     if rec.revoked_at.is_some() {
@@ -187,7 +187,7 @@ pub fn revoke_by_agent(
             return Ok((vec![], false));
         }
         bail!(
-            "no token for agent '{agent}'\n  bagsy token list\n  bagsy token create --agent {agent}"
+            "no token for agent '{agent}'\n  kbsync token list\n  kbsync token create --agent {agent}"
         );
     }
     if !dry_run {
@@ -218,7 +218,7 @@ mod tests {
 
     fn root() -> TempDir {
         let tmp = TempDir::new().unwrap();
-        fs::create_dir_all(tmp.path().join(".bagsy")).unwrap();
+        fs::create_dir_all(tmp.path().join(".okfsync")).unwrap();
         tmp
     }
 

@@ -1,4 +1,4 @@
-//! HTTP client for a bagsy server.
+//! HTTP client for an okfsync server.
 
 use anyhow::{bail, Context, Result};
 use ureq::Error as UreqError;
@@ -75,15 +75,15 @@ impl Remote {
 
 /// Client mode when both URL and token are present.
 pub fn from_opts(url: Option<&str>, token: Option<&str>) -> Result<Option<Remote>> {
-    let url = nonempty(url).or_else(|| nonempty_env("BAGSY_URL"));
-    let token = nonempty(token).or_else(|| nonempty_env("BAGSY_TOKEN"));
+    let url = nonempty(url).or_else(|| nonempty_env("KBSYNC_URL"));
+    let token = nonempty(token).or_else(|| nonempty_env("KBSYNC_TOKEN"));
     match (url, token) {
         (None, None) => Ok(None),
         (Some(_), None) => bail!(
-            "BAGSY_TOKEN is missing (BAGSY_URL is set)\n  bagsy get <concept> --url http://127.0.0.1:7432 --token <token>\n  export BAGSY_TOKEN=<token>"
+            "KBSYNC_TOKEN is missing (KBSYNC_URL is set)\n  kbsync get <concept> --url http://127.0.0.1:7432 --token <token>\n  export KBSYNC_TOKEN=<token>"
         ),
         (None, Some(_)) => bail!(
-            "BAGSY_URL is missing (BAGSY_TOKEN is set)\n  bagsy get <concept> --url http://127.0.0.1:7432 --token <token>\n  export BAGSY_URL=http://127.0.0.1:7432"
+            "KBSYNC_URL is missing (KBSYNC_TOKEN is set)\n  kbsync get <concept> --url http://127.0.0.1:7432 --token <token>\n  export KBSYNC_URL=http://127.0.0.1:7432"
         ),
         (Some(url), Some(token)) => Ok(Some(Remote::new(&url, &token))),
     }
@@ -106,14 +106,14 @@ fn read_json<T: serde::de::DeserializeOwned>(
     result: std::result::Result<ureq::Response, UreqError>,
 ) -> Result<T> {
     match result {
-        Ok(resp) => resp.into_json().context("decoding bagsy server JSON"),
+        Ok(resp) => resp.into_json().context("decoding okfsync server JSON"),
         Err(UreqError::Status(_code, resp)) => {
             let msg = resp
                 .into_json::<ErrorBody>()
                 .map(|b| b.error)
-                .unwrap_or_else(|_| "bagsy server error".into());
+                .unwrap_or_else(|_| "okfsync server error".into());
             bail!("{msg}")
         }
-        Err(UreqError::Transport(t)) => bail!("cannot reach bagsy server: {t}"),
+        Err(UreqError::Transport(t)) => bail!("cannot reach okfsync server: {t}"),
     }
 }

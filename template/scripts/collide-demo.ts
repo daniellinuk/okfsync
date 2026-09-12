@@ -1,5 +1,5 @@
 /**
- * Wiki demo: two agents propose to the same concept via bagsy serve.
+ * Wiki demo: two agents propose to the same concept via kbsync serve.
  * Last write wins on disk; git on the server still has both commits.
  * The CLI cannot delete knowledge.
  */
@@ -13,16 +13,16 @@ import { createConnection } from "node:net";
 const templateRoot = join(import.meta.dir, "..");
 const repoRoot = join(templateRoot, "..");
 
-function bagsyBin(): string {
-  if (process.env.BAGSY_BIN && existsSync(process.env.BAGSY_BIN)) {
-    return process.env.BAGSY_BIN;
+function kbsyncBin(): string {
+  if (process.env.KBSYNC_BIN && existsSync(process.env.KBSYNC_BIN)) {
+    return process.env.KBSYNC_BIN;
   }
-  const release = join(repoRoot, "cli", "target", "release", "bagsy");
-  const debug = join(repoRoot, "cli", "target", "debug", "bagsy");
+  const release = join(repoRoot, "cli", "target", "release", "kbsync");
+  const debug = join(repoRoot, "cli", "target", "debug", "kbsync");
   if (existsSync(release)) return release;
   if (existsSync(debug)) return debug;
   throw new Error(
-    "bagsy binary not found — run `cargo build -p bagsy` (or `bun run build:cli`) first"
+    "kbsync binary not found — run `cargo build -p okfsync` (or `bun run build:cli`) first"
   );
 }
 
@@ -67,10 +67,10 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
   workDir: string;
   steps: { name: string; ok: boolean; detail: string }[];
 }> {
-  const bin = bagsyBin();
+  const bin = kbsyncBin();
   const workDir = join(
     tmpdir(),
-    `bagsy-wiki-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    `okfsync-wiki-${Date.now()}-${Math.random().toString(16).slice(2)}`
   );
   mkdirSync(workDir, { recursive: true });
   cpSync(templateRoot, workDir, {
@@ -79,8 +79,8 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
   });
 
   spawnSync("git", ["init", "-b", "main"], { cwd: workDir });
-  spawnSync("git", ["config", "user.email", "demo@bagsy.dev"], { cwd: workDir });
-  spawnSync("git", ["config", "user.name", "bagsy-demo"], { cwd: workDir });
+  spawnSync("git", ["config", "user.email", "demo@okfsync.dev"], { cwd: workDir });
+  spawnSync("git", ["config", "user.name", "okfsync-demo"], { cwd: workDir });
   spawnSync("git", ["add", "."], { cwd: workDir });
   spawnSync("git", ["commit", "-m", "chore: seed okf template"], { cwd: workDir });
 
@@ -117,8 +117,8 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
         .stdout
     ).token;
 
-    const envA = { BAGSY_URL: url, BAGSY_TOKEN: tokA };
-    const envB = { BAGSY_URL: url, BAGSY_TOKEN: tokB };
+    const envA = { KBSYNC_URL: url, KBSYNC_TOKEN: tokA };
+    const envB = { KBSYNC_URL: url, KBSYNC_TOKEN: tokB };
 
     writeFileSync(
       join(workDir, "a.md"),
@@ -129,7 +129,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
       "---\ntype: Playbook\ntitle: Shared Brain\n---\n\nFrom agent B.\n"
     );
 
-    console.log(`bagsy wiki demo → ${workDir}`);
+    console.log(`okfsync wiki demo → ${workDir}`);
     console.log(`binary: ${bin}`);
     console.log(`server: ${url}`);
     console.log();
@@ -165,7 +165,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
     const mark = s.ok ? "ok" : "FAIL";
     if (!s.ok) failed++;
     console.log(`[${mark}] ${s.name}`);
-    if (!s.ok || process.env.BAGSY_DEMO_VERBOSE === "1") {
+    if (!s.ok || process.env.KBSYNC_DEMO_VERBOSE === "1") {
       if (s.detail) console.log(`       ${s.detail.split("\n")[0]}`);
     }
   }
@@ -177,7 +177,7 @@ export async function runCollideDemo(options: { keep?: boolean } = {}): Promise<
     process.exitCode = 1;
   } else {
     console.log("wiki propose succeeded. Latest wins; git still has history.");
-    if (!options.keep && process.env.BAGSY_DEMO_KEEP !== "1") {
+    if (!options.keep && process.env.KBSYNC_DEMO_KEEP !== "1") {
       rmSync(workDir, { recursive: true, force: true });
     } else {
       console.log(`work dir: ${workDir}`);

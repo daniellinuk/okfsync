@@ -1,4 +1,4 @@
-//! `bagsy serve` — HTTP API over one OKF data directory.
+//! `kbsync serve` — HTTP API over one OKF data directory.
 
 use anyhow::{Context, Result};
 use axum::extract::{Query, State};
@@ -44,13 +44,13 @@ fn agent_from(headers: &HeaderMap, root: &std::path::Path) -> Result<String, Api
         .unwrap_or(raw)
         .trim();
     if presented.is_empty() {
-        if let Some(alt) = headers.get("x-bagsy-token").and_then(|v| v.to_str().ok()) {
+        if let Some(alt) = headers.get("x-kbsync-token").and_then(|v| v.to_str().ok()) {
             return token::authenticate(root, alt.trim())
                 .map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()));
         }
         return Err(err(
             StatusCode::UNAUTHORIZED,
-            "missing bearer token (Authorization: Bearer … or BAGSY_TOKEN)",
+            "missing bearer token (Authorization: Bearer … or KBSYNC_TOKEN)",
         ));
     }
     token::authenticate(root, presented).map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()))
@@ -164,7 +164,7 @@ async fn get_lint(
 async fn reject_delete() -> impl IntoResponse {
     err(
         StatusCode::METHOD_NOT_ALLOWED,
-        "bagsy CLI/API cannot delete knowledge; gardening is out of band (git history)",
+        "kbsync CLI/API cannot delete knowledge; gardening is out of band (git history)",
     )
 }
 
@@ -174,7 +174,7 @@ async fn fallback(method: Method) -> impl IntoResponse {
     }
     err(
         StatusCode::NOT_FOUND,
-        "unknown path — bagsy API is /health and /v1/…",
+        "unknown path — okfsync API is /health and /v1/…",
     )
     .into_response()
 }
@@ -186,9 +186,9 @@ pub async fn run(
     push_interval: u64,
     json: bool,
 ) -> Result<()> {
-    if !root.join("concepts").is_dir() && !root.join(".bagsy").is_dir() {
+    if !root.join("concepts").is_dir() && !root.join(".okfsync").is_dir() {
         anyhow::bail!(
-            "{} does not look like a bagsy KB (need concepts/ or .bagsy/). Run `bagsy init`.",
+            "{} does not look like an okfsync KB (need concepts/ or .okfsync/). Run `kbsync init`.",
             root.display()
         );
     }
@@ -196,7 +196,7 @@ pub async fn run(
 
     let n_active = token::list(&root)?.iter().filter(|t| t.is_active()).count();
     if n_active == 0 {
-        eprintln!("warning: no active agent tokens — run `bagsy token create --agent <id>`");
+        eprintln!("warning: no active agent tokens — run `kbsync token create --agent <id>`");
     }
 
     let state = Arc::new(AppState {
@@ -249,12 +249,12 @@ pub async fn run(
             })
         );
     } else {
-        println!("bagsy serve listening on http://{local}");
+        println!("kbsync serve listening on http://{local}");
         println!("  data dir: {}", root.display());
         println!("  api:      /health  /v1/concepts|pages|proposals|lint  (no delete)");
         if n_active == 0 {
             println!(
-                "  tokens:   none (create with bagsy token create --agent <id> --root {})",
+                "  tokens:   none (create with kbsync token create --agent <id> --root {})",
                 root.display()
             );
         } else {
@@ -270,7 +270,7 @@ pub async fn run(
 
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
-    eprintln!("bagsy serve: shutting down");
+    eprintln!("kbsync serve: shutting down");
 }
 
 pub fn run_blocking(

@@ -1,8 +1,8 @@
 {
-  "name": "@bagsy/template",
+  "name": "@okfsync/template",
   "private": true,
   "version": "0.1.0",
-  "description": "Minimal OKF knowledge bundle + wiki demo for bagsy",
+  "description": "Minimal OKF knowledge bundle + wiki demo for okfsync",
   "scripts": {
     "demo": "bun run scripts/collide-demo.ts",
     "lint": "bun run scripts/lint.ts",

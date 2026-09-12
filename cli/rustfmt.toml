@@ -1,4 +1,4 @@
-# rustfmt for bagsy CLI (optional local: cargo fmt --manifest-path cli/Cargo.toml)
+# rustfmt for the kbsync CLI (optional local: cargo fmt --manifest-path cli/Cargo.toml)
 # CI does not gate on rustfmt yet to avoid churning existing sources.
 edition = "2021"
 newline_style = "Unix"

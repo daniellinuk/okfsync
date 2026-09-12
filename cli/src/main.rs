@@ -1,6 +1,6 @@
-//! bagsy — Bagsy a concept so your agents don't clobber the brain.
+//! okfsync — A concept wiki so your agents don't clobber the brain.
 //!
-//! CLI for agents; `bagsy serve` holds the OKF wiki. Per-agent bearer tokens
+//! CLI for agents; `kbsync serve` holds the OKF wiki. Per-agent bearer tokens
 //! gate access. Agents get and propose markdown. No claim/release. No deletes.
 
 mod api;
@@ -27,40 +27,40 @@ use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "bagsy",
+    name = "kbsync",
     version,
-    about = "Bagsy a concept so your agents don't clobber the brain.",
+    about = "A concept wiki so your agents don't clobber the brain.",
     long_about = "OSS CLI for a multi-agent OKF wiki.\n\
-Agents talk to `bagsy serve` over HTTP with a per-agent bearer token.\n\
+Agents talk to `kbsync serve` over HTTP with a per-agent bearer token.\n\
 The CLI can read and propose (create/update) concepts. It cannot delete.\n\
 The KB owner runs init/serve/token on the data directory. Gardening is out of band.",
     after_help = "Examples:
-  bagsy list --help
-  bagsy search --help
-  bagsy get --help
-  bagsy propose --help
-  bagsy lint --help
-  bagsy token --help
-  bagsy init --help
-  bagsy serve --help"
+  kbsync list --help
+  kbsync search --help
+  kbsync get --help
+  kbsync propose --help
+  kbsync lint --help
+  kbsync token --help
+  kbsync init --help
+  kbsync serve --help"
 )]
 struct Cli {
     /// Path to the OKF knowledge root (directory containing concepts/).
-    #[arg(long, global = true, env = "BAGSY_ROOT")]
+    #[arg(long, global = true, env = "KBSYNC_ROOT")]
     root: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,
 }
 
-/// Server connection (agent commands only). Env: BAGSY_URL, BAGSY_TOKEN.
+/// Server connection (agent commands only). Env: KBSYNC_URL, KBSYNC_TOKEN.
 #[derive(Debug, Clone, Args)]
 struct ServerOpts {
-    /// Bagsy server URL (agent mode). Example: http://127.0.0.1:7432
-    #[arg(long, env = "BAGSY_URL")]
+    /// okfsync server URL (agent mode). Example: http://127.0.0.1:7432
+    #[arg(long, env = "KBSYNC_URL")]
     url: Option<String>,
-    /// Bearer token issued by `bagsy token create` (agent mode)
-    #[arg(long, env = "BAGSY_TOKEN")]
+    /// Bearer token issued by `kbsync token create` (agent mode)
+    #[arg(long, env = "KBSYNC_TOKEN")]
     token: Option<String>,
 }
 
@@ -72,10 +72,10 @@ impl ServerOpts {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Create a new KB data directory (concepts/, .bagsy/, git).
+    /// Create a new KB data directory (concepts/, .okfsync/, git).
     #[command(after_help = "Examples:
-  bagsy init --root ./my-kb
-  bagsy init --root ./my-kb --json")]
+  kbsync init --root ./my-kb
+  kbsync init --root ./my-kb --json")]
     Init {
         /// Machine-readable JSON on stdout
         #[arg(long)]
@@ -83,9 +83,9 @@ enum Commands {
     },
     /// Serve the KB over HTTP (owner). Default bind: 127.0.0.1:7432
     #[command(after_help = "Examples:
-  bagsy serve --root ./my-kb
-  bagsy serve --root ./my-kb --bind 127.0.0.1:7432
-  bagsy serve --root ./my-kb --bind 127.0.0.1:0 --json")]
+  kbsync serve --root ./my-kb
+  kbsync serve --root ./my-kb --bind 127.0.0.1:7432
+  kbsync serve --root ./my-kb --bind 127.0.0.1:0 --json")]
     Serve {
         /// Listen address
         #[arg(long, default_value = "127.0.0.1:7432")]
@@ -102,18 +102,18 @@ enum Commands {
     },
     /// Create, list, or revoke per-agent tokens (owner; local data dir).
     #[command(after_help = "Examples:
-  bagsy token create --help
-  bagsy token list --help
-  bagsy token revoke --help")]
+  kbsync token create --help
+  kbsync token list --help
+  kbsync token revoke --help")]
     Token {
         #[command(subcommand)]
         cmd: TokenCmd,
     },
     /// List concept paths and titles (no bodies).
     #[command(after_help = "Examples:
-  bagsy list
-  bagsy list --json
-  bagsy list --url http://127.0.0.1:7432 --token \"$BAGSY_TOKEN\"")]
+  kbsync list
+  kbsync list --json
+  kbsync list --url http://127.0.0.1:7432 --token \"$KBSYNC_TOKEN\"")]
     List {
         /// Machine-readable JSON on stdout
         #[arg(long)]
@@ -123,9 +123,9 @@ enum Commands {
     },
     /// Search path, title, tags, and body; prints summaries (then get).
     #[command(after_help = "Examples:
-  bagsy search routing
-  bagsy search \"shared brain\" --json
-  bagsy search routing --url http://127.0.0.1:7432 --token \"$BAGSY_TOKEN\"")]
+  kbsync search routing
+  kbsync search \"shared brain\" --json
+  kbsync search routing --url http://127.0.0.1:7432 --token \"$KBSYNC_TOKEN\"")]
     Search {
         /// Substring to match (quote multi-word queries)
         query: Option<String>,
@@ -137,10 +137,10 @@ enum Commands {
     },
     /// Read a concept (raw markdown, round-trips into propose).
     #[command(after_help = "Examples:
-  bagsy get brain
-  bagsy get brain --json
-  bagsy get brain --url http://127.0.0.1:7432 --token \"$BAGSY_TOKEN\"
-  bagsy get brain > /tmp/brain.md")]
+  kbsync get brain
+  kbsync get brain --json
+  kbsync get brain --url http://127.0.0.1:7432 --token \"$KBSYNC_TOKEN\"
+  kbsync get brain > /tmp/brain.md")]
     Get {
         /// Concept path, e.g. brain or concepts/brain.md
         concept: Option<String>,
@@ -152,11 +152,11 @@ enum Commands {
     },
     /// Create or update a concept (never deletes). Server commits on its clone.
     #[command(after_help = "Examples:
-  bagsy propose brain --file ./brain.md
-  bagsy propose brain --file -
-  cat brain.md | bagsy propose brain --file -
-  bagsy propose brain --file ./brain.md --dry-run
-  bagsy propose brain --file ./brain.md --json")]
+  kbsync propose brain --file ./brain.md
+  kbsync propose brain --file -
+  cat brain.md | kbsync propose brain --file -
+  kbsync propose brain --file ./brain.md --dry-run
+  kbsync propose brain --file ./brain.md --json")]
     Propose {
         /// Concept path
         concept: Option<String>,
@@ -170,7 +170,7 @@ enum Commands {
         #[arg(long)]
         push: bool,
         /// Agent identity for local mode. Ignored in server mode (token is identity).
-        #[arg(long, env = "BAGSY_AGENT")]
+        #[arg(long, env = "KBSYNC_AGENT")]
         agent: Option<String>,
         /// Validate path + frontmatter; do not write
         #[arg(long)]
@@ -183,9 +183,9 @@ enum Commands {
     },
     /// Lint OKF concepts (frontmatter).
     #[command(after_help = "Examples:
-  bagsy lint
-  bagsy lint --strict
-  bagsy lint --json")]
+  kbsync lint
+  kbsync lint --strict
+  kbsync lint --json")]
     Lint {
         /// Treat warnings as errors
         #[arg(long)]
@@ -202,9 +202,9 @@ enum Commands {
 enum TokenCmd {
     /// Issue a token for one agent (printed once).
     #[command(after_help = "Examples:
-  bagsy token create --agent worker-1
-  bagsy token create --agent worker-1 --json
-  bagsy token create --agent worker-1 --rotate --json")]
+  kbsync token create --agent worker-1
+  kbsync token create --agent worker-1 --json
+  kbsync token create --agent worker-1 --rotate --json")]
     Create {
         /// Agent id (one active token unless --rotate)
         #[arg(long)]
@@ -218,8 +218,8 @@ enum TokenCmd {
     },
     /// List tokens (hashes only; secrets are never stored).
     #[command(after_help = "Examples:
-  bagsy token list
-  bagsy token list --json")]
+  kbsync token list
+  kbsync token list --json")]
     List {
         /// Machine-readable JSON on stdout
         #[arg(long)]
@@ -227,10 +227,10 @@ enum TokenCmd {
     },
     /// Revoke access for a token id or every token for an agent.
     #[command(after_help = "Examples:
-  bagsy token revoke --agent worker-1
-  bagsy token revoke --id <token-id>
-  bagsy token revoke --agent worker-1 --dry-run
-  bagsy token list")]
+  kbsync token revoke --agent worker-1
+  kbsync token revoke --id <token-id>
+  kbsync token revoke --agent worker-1 --dry-run
+  kbsync token list")]
     Revoke {
         #[arg(long)]
         id: Option<String>,
@@ -271,27 +271,27 @@ fn argv_hint() -> Option<String> {
         return None;
     }
     let hint = if has("get") {
-        "  bagsy get brain\n  bagsy list\n  bagsy get --help"
+        "  kbsync get brain\n  kbsync list\n  kbsync get --help"
     } else if has("propose") {
-        "  bagsy propose brain --file ./brain.md\n  bagsy propose --help"
+        "  kbsync propose brain --file ./brain.md\n  kbsync propose --help"
     } else if has("search") {
-        "  bagsy search routing\n  bagsy list\n  bagsy search --help"
+        "  kbsync search routing\n  kbsync list\n  kbsync search --help"
     } else if has("list") {
-        "  bagsy list\n  bagsy list --json\n  bagsy list --help"
+        "  kbsync list\n  kbsync list --json\n  kbsync list --help"
     } else if has("create") && has("token") {
-        "  bagsy token create --agent worker-1\n  bagsy token create --help"
+        "  kbsync token create --agent worker-1\n  kbsync token create --help"
     } else if has("revoke") && has("token") {
-        "  bagsy token revoke --agent worker-1\n  bagsy token list"
+        "  kbsync token revoke --agent worker-1\n  kbsync token list"
     } else if has("token") {
-        "  bagsy token list\n  bagsy token --help"
+        "  kbsync token list\n  kbsync token --help"
     } else if has("lint") {
-        "  bagsy lint\n  bagsy lint --json\n  bagsy lint --help"
+        "  kbsync lint\n  kbsync lint --json\n  kbsync lint --help"
     } else if has("serve") {
-        "  bagsy serve --root ./my-kb\n  bagsy serve --help"
+        "  kbsync serve --root ./my-kb\n  kbsync serve --help"
     } else if has("init") {
-        "  bagsy init --root ./my-kb\n  bagsy init --help"
+        "  kbsync init --root ./my-kb\n  kbsync init --help"
     } else {
-        "  bagsy list --help\n  bagsy get --help\n  bagsy --help"
+        "  kbsync list --help\n  kbsync get --help\n  kbsync --help"
     };
     Some(hint.into())
 }
@@ -301,10 +301,10 @@ fn require_concept(concept: Option<String>, for_cmd: &str) -> Result<String> {
         Some(c) if !c.trim().is_empty() => Ok(c),
         _ => match for_cmd {
             "propose" => bail!(
-                "concept path required\n  bagsy propose brain --file ./brain.md\n  bagsy list\n  bagsy propose --help"
+                "concept path required\n  kbsync propose brain --file ./brain.md\n  kbsync list\n  kbsync propose --help"
             ),
             _ => bail!(
-                "concept path required\n  bagsy get brain\n  bagsy list\n  bagsy get --help"
+                "concept path required\n  kbsync get brain\n  kbsync list\n  kbsync get --help"
             ),
         },
     }
@@ -324,7 +324,7 @@ fn main() -> Result<()> {
         } => {
             let addr: SocketAddr = bind.parse().with_context(|| {
                 format!(
-                    "invalid --bind '{bind}' (use host:port)\n  bagsy serve --bind 127.0.0.1:7432"
+                    "invalid --bind '{bind}' (use host:port)\n  kbsync serve --bind 127.0.0.1:7432"
                 )
             })?;
             server::run_blocking(root, addr, push, push_interval, json)
@@ -345,7 +345,7 @@ fn main() -> Result<()> {
             let query = match query {
                 Some(q) if !q.trim().is_empty() => q,
                 _ => bail!(
-                    "search query required\n  bagsy search routing\n  bagsy list\n  bagsy search --help"
+                    "search query required\n  kbsync search routing\n  kbsync list\n  kbsync search --help"
                 ),
             };
             if let Some(r) = server.remote()? {
@@ -447,14 +447,14 @@ fn read_propose_markdown(file: Option<&Path>) -> Result<String> {
         Some(p) if p.as_os_str() == "-" => read_stdin(),
         Some(p) => fs::read_to_string(p).with_context(|| {
             format!(
-                "reading {}\n  bagsy propose <concept> --file <path.md>",
+                "reading {}\n  kbsync propose <concept> --file <path.md>",
                 p.display()
             )
         }),
         None => {
             if std::io::stdin().is_terminal() {
                 bail!(
-                    "markdown required\n  bagsy propose <concept> --file <path.md>\n  bagsy propose <concept> --file -\n  cat page.md | bagsy propose <concept> --file -"
+                    "markdown required\n  kbsync propose <concept> --file <path.md>\n  kbsync propose <concept> --file -\n  cat page.md | kbsync propose <concept> --file -"
                 );
             }
             read_stdin()
@@ -469,7 +469,7 @@ fn read_stdin() -> Result<String> {
         .context("reading stdin")?;
     if buf.trim().is_empty() {
         bail!(
-            "stdin was empty\n  bagsy propose <concept> --file <path.md>\n  cat page.md | bagsy propose <concept> --file -"
+            "stdin was empty\n  kbsync propose <concept> --file <path.md>\n  cat page.md | kbsync propose <concept> --file -"
         );
     }
     Ok(buf)
@@ -485,7 +485,7 @@ fn token_cmd(root: &Path, cmd: TokenCmd) -> Result<()> {
             let agent = match agent {
                 Some(a) if !a.trim().is_empty() => a,
                 _ => bail!(
-                    "agent id required\n  bagsy token create --agent worker-1\n  bagsy token create --agent worker-1 --json"
+                    "agent id required\n  kbsync token create --agent worker-1\n  kbsync token create --agent worker-1 --json"
                 ),
             };
             let issued = token::create(root, &agent, rotate)?;
@@ -496,10 +496,10 @@ fn token_cmd(root: &Path, cmd: TokenCmd) -> Result<()> {
                 println!("  id:    {}", issued.id);
                 println!("  token: {}", issued.token);
                 println!();
-                println!("Store this token; bagsy will not show it again.");
+                println!("Store this token; kbsync will not show it again.");
                 println!("Agent env:");
-                println!("  export BAGSY_URL=http://127.0.0.1:7432");
-                println!("  export BAGSY_TOKEN={}", issued.token);
+                println!("  export KBSYNC_URL=http://127.0.0.1:7432");
+                println!("  export KBSYNC_TOKEN={}", issued.token);
             }
             Ok(())
         }
@@ -542,7 +542,7 @@ fn token_cmd(root: &Path, cmd: TokenCmd) -> Result<()> {
                 print_revoke(json, dry_run, changed, &recs)
             }
             _ => bail!(
-                "pass exactly one of --id or --agent\n  bagsy token revoke --agent <name>\n  bagsy token revoke --id <token-id>\n  bagsy token list"
+                "pass exactly one of --id or --agent\n  kbsync token revoke --agent <name>\n  kbsync token revoke --id <token-id>\n  kbsync token list"
             ),
         },
     }

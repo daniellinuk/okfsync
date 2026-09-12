@@ -1,8 +1,10 @@
-# bagsy
+# okfsync
 
-**Bagsy a concept so your agents don't clobber the brain.**
+**A concept wiki so your agents don't clobber the brain.**
 
-A small **wiki** for multi-agent knowledge. One `bagsy serve` process holds an [OKF](https://okf.md/spec/) tree. Git on that machine is history (optional remote mirror). Agents never need the git repo.
+A small **wiki** for multi-agent knowledge. One `kbsync serve` process holds an [OKF](https://okf.md/spec/) tree. Git on that machine is history (optional remote mirror). Agents never need the git repo.
+
+The GitHub repo and npm package are **okfsync**. The terminal command is **kbsync**.
 
 The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupes, drop junk) is a separate role, out of band.
 
@@ -10,14 +12,14 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 
 | Who | Runs | Needs |
 |-----|------|--------|
-| **KB owner** | `bagsy init`, `bagsy serve`, `bagsy token` | The data directory |
-| **Agent** | `list` `search` `get` `propose` `lint` | `BAGSY_URL` + `BAGSY_TOKEN` |
+| **KB owner** | `kbsync init`, `kbsync serve`, `kbsync token` | The data directory |
+| **Agent** | `list` `search` `get` `propose` `lint` | `KBSYNC_URL` + `KBSYNC_TOKEN` |
 | **Gardener** | not the CLI | Git history / remote checkout — can delete or rewrite there |
 
 `/template` is a **demo seed**, not a production KB.
 
 ```
-/cli       Rust CLI + server (`bagsy serve`)
+/cli       Rust CLI + server (`kbsync serve`)
 /npm       Prebuilt-binary wrapper (bun / npm / pnpm)
 /template  Minimal OKF concepts + wiki demo
 ```
@@ -36,8 +38,8 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 |-------|------------|
 | `concepts/*.md` | OKF concepts on the **server disk** |
 | git in the data dir | History; optional `serve --push` to a remote |
-| `.bagsy/tokens.toml` | Hashed per-agent tokens (owner-only) |
-| `bagsy serve --bind …` | HTTP API (`/health`, `/v1/concepts`, `/v1/pages`, `/v1/proposals`, `/v1/lint`) |
+| `.okfsync/tokens.toml` | Hashed per-agent tokens (owner-only) |
+| `kbsync serve --bind …` | HTTP API (`/health`, `/v1/concepts`, `/v1/pages`, `/v1/proposals`, `/v1/lint`) |
 
 **Flow:** owner `init` + `token create` + `serve` → agent `get` → edit a local copy → `propose --file`.
 
@@ -47,38 +49,38 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 
 | Command | When to use |
 |---------|-------------|
-| `bagsy init` | Create `concepts/`, `.bagsy/`, git if needed |
-| `bagsy serve` | Listen (default `127.0.0.1:7432`) |
-| `bagsy serve --bind 0.0.0.0:7432` | Reachable from other machines |
-| `bagsy token create --agent <id>` | Mint one token (printed once) |
-| `bagsy token list` / `revoke` / `create --rotate` | Who may call the API |
+| `kbsync init` | Create `concepts/`, `.okfsync/`, git if needed |
+| `kbsync serve` | Listen (default `127.0.0.1:7432`) |
+| `kbsync serve --bind 0.0.0.0:7432` | Reachable from other machines |
+| `kbsync token create --agent <id>` | Mint one token (printed once) |
+| `kbsync token list` / `revoke` / `create --rotate` | Who may call the API |
 
 **Agents**
 
 | Command | When to use |
 |---------|-------------|
-| `bagsy list` | Paths + titles (no bodies) |
-| `bagsy search <query>` | Filter list by path/title/tags/body |
-| `bagsy get <concept>` | Read raw markdown |
-| `bagsy propose <concept> --file <md>` | Create or update one page (never deletes) |
-| `bagsy lint` | OKF frontmatter |
+| `kbsync list` | Paths + titles (no bodies) |
+| `kbsync search <query>` | Filter list by path/title/tags/body |
+| `kbsync get <concept>` | Read raw markdown |
+| `kbsync propose <concept> --file <md>` | Create or update one page (never deletes) |
+| `kbsync lint` | OKF frontmatter |
 
-`--url` / `BAGSY_URL` and `--token` / `BAGSY_TOKEN` select the server on agent commands only. Without them, `list`/`search`/`get`/`lint`/`propose` operate on `--root` (owner local mode).
+`--url` / `KBSYNC_URL` and `--token` / `KBSYNC_TOKEN` select the server on agent commands only. Without them, `list`/`search`/`get`/`lint`/`propose` operate on `--root` (owner local mode).
 
 `serve --push` / `--push-interval` optionally `git push` to `origin`. Hosting is the operator's choice.
 
 ## How an agent should work
 
 ```bash
-export BAGSY_URL=http://127.0.0.1:7432
-export BAGSY_TOKEN=bgy_…          # from the owner
+export KBSYNC_URL=http://127.0.0.1:7432
+export KBSYNC_TOKEN=kbs_…          # from the owner
 
-bagsy list
-bagsy search routing
-bagsy get brain
+kbsync list
+kbsync search routing
+kbsync get brain
 # stdout is the raw markdown (round-trips into propose)
-bagsy propose brain --file ./brain.md
-bagsy lint
+kbsync propose brain --file ./brain.md
+kbsync lint
 ```
 
 ## Install
@@ -90,12 +92,12 @@ Needs a recent stable Rust. The current lockfile requires **rustc ≥ 1.88** (`r
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml
 export PATH="$PWD/cli/target/release:$PATH"
-bagsy --help
+kbsync --help
 ```
 
 ### Via bun / npm / pnpm
 
-Not published yet. `bun add -g bagsy` / `npm i -g bagsy` will not work until the `bagsy` package is on npmjs **and** GitHub Release binaries exist for this version. Until then, use the source build above.
+Not published yet. `bun add -g okfsync` / `npm i -g okfsync` will not work until the `okfsync` package is on npmjs **and** GitHub Release binaries exist for this version. After install, the command is `kbsync`. Until then, use the source build above.
 
 This is not the PyPI package `bagsy` (a ROS bag CLI). Do not `pip install bagsy`.
 
@@ -105,9 +107,9 @@ This is not the PyPI package `bagsy` (a ROS bag CLI). Do not `pip install bagsy`
 
 ```bash
 mkdir -p ./my-kb
-bagsy init --root ./my-kb
-bagsy token create --agent agent-a --root ./my-kb
-bagsy serve --root ./my-kb
+kbsync init --root ./my-kb
+kbsync token create --agent agent-a --root ./my-kb
+kbsync serve --root ./my-kb
 ```
 
 ## Wiki demo
@@ -124,7 +126,7 @@ bun run demo
 ## What NOT to do
 
 - Give agents git write to the KB instead of a token (unless they are the gardener).
-- Delete knowledge through bagsy — use git/history as gardener.
+- Delete knowledge through kbsync — use git/history as gardener.
 - Bind `0.0.0.0` with no tokens.
 - Treat `/template` as your production knowledge base.
 

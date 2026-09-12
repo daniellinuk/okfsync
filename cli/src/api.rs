@@ -1,4 +1,4 @@
-//! Shared JSON types for the bagsy HTTP API (v1).
+//! Shared JSON types for the okfsync HTTP API (v1).
 
 use serde::{Deserialize, Serialize};
 

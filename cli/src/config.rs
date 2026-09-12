@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_BRANCH: &str = "main";
-pub const CONFIG_FILE: &str = ".bagsy/config.toml";
+pub const CONFIG_FILE: &str = ".okfsync/config.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -46,7 +46,7 @@ impl Config {
     }
 }
 
-/// Resolve the bagsy/OKF root: explicit flag, walk up for `.bagsy/`, or cwd.
+/// Resolve the okfsync/OKF root: explicit flag, walk up for `.okfsync/`, or cwd.
 pub fn resolve_root(explicit: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = explicit {
         let abs = if p.is_absolute() {
@@ -55,7 +55,7 @@ pub fn resolve_root(explicit: Option<&Path>) -> Result<PathBuf> {
             std::env::current_dir()?.join(p)
         };
         if !abs.is_dir() {
-            bail!("bagsy root is not a directory: {}", abs.display());
+            bail!("okfsync root is not a directory: {}", abs.display());
         }
         return Ok(abs);
     }
@@ -63,7 +63,7 @@ pub fn resolve_root(explicit: Option<&Path>) -> Result<PathBuf> {
     let cwd = std::env::current_dir()?;
     let mut cur = cwd.as_path();
     loop {
-        if cur.join(".bagsy").is_dir() || cur.join("concepts").is_dir() {
+        if cur.join(".okfsync").is_dir() || cur.join("concepts").is_dir() {
             return Ok(cur.to_path_buf());
         }
         match cur.parent() {
@@ -78,7 +78,7 @@ pub fn default_agent(explicit: Option<&str>) -> String {
     if let Some(a) = explicit {
         return a.to_string();
     }
-    if let Ok(a) = std::env::var("BAGSY_AGENT") {
+    if let Ok(a) = std::env::var("KBSYNC_AGENT") {
         if !a.is_empty() {
             return a;
         }

@@ -38,7 +38,7 @@ pub fn print_report(report: &LintResponse, json: bool) -> Result<()> {
         println!("error: {e}");
     }
     println!(
-        "bagsy lint: {} concept(s), {} error(s), {} warning(s)",
+        "kbsync lint: {} concept(s), {} error(s), {} warning(s)",
         report.concepts,
         report.errors.len(),
         report.warnings.len()

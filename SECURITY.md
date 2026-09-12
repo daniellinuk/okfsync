@@ -10,7 +10,7 @@ Please report security issues privately to the repository maintainers (Origin/Gi
 
 ## Scope notes for agents
 
-bagsy is a CLI plus a local HTTP server around an OKF git working tree. Prefer reporting:
+okfsync is a CLI plus a local HTTP server around an OKF git working tree. Prefer reporting:
 
 - Token hash storage / token leak in logs
 - Path traversal or writes outside `concepts/` on propose
@@ -18,6 +18,6 @@ bagsy is a CLI plus a local HTTP server around an OKF git working tree. Prefer r
 - Unsafe git operations on propose/push
 - Supply-chain problems in the npm binary download path (`npm/lib/install.js`)
 
-Bearer tokens are capabilities. The owner should treat `bagsy token create` output like a password. `.bagsy/tokens.toml` stores hashes only.
+Bearer tokens are capabilities. The owner should treat `kbsync token create` output like a password. `.okfsync/tokens.toml` stores hashes only.
 
 Agent working rules: [AGENTS.md](./AGENTS.md).

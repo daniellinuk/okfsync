@@ -17,7 +17,7 @@ pub fn print_pages(concepts: &[ConceptSummary], json: bool) -> Result<()> {
     }
     if concepts.is_empty() {
         println!("no concepts");
-        println!("  bagsy propose brain --file ./brain.md");
+        println!("  kbsync propose brain --file ./brain.md");
         return Ok(());
     }
     for c in concepts {
@@ -34,8 +34,8 @@ pub fn print_search_hits(concepts: &[ConceptSummary], json: bool) -> Result<()> 
     }
     if concepts.is_empty() {
         println!("no matches");
-        println!("  bagsy list");
-        println!("  bagsy search <query>");
+        println!("  kbsync list");
+        println!("  kbsync search <query>");
         return Ok(());
     }
     print_pages(concepts, false)

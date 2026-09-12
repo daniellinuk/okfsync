@@ -1,11 +1,11 @@
-# Contributing to bagsy
+# Contributing to okfsync
 
 Short guide for humans and agents. Full agent playbook: [AGENTS.md](./AGENTS.md).
 
 ## Owner vs agent
 
-- **Owner** (has the data dir): `bagsy init`, `serve`, `token create|list|revoke`.
-- **Agents**: `BAGSY_URL` + `BAGSY_TOKEN`, then `get` / `propose --file` / `lint`.
+- **Owner** (has the data dir): `kbsync init`, `serve`, `token create|list|revoke`.
+- **Agents**: `KBSYNC_URL` + `KBSYNC_TOKEN`, then `get` / `propose --file` / `lint`.
 - **Gardener**: not the CLI. Use git history / a remote checkout.
 
 ## PR rules

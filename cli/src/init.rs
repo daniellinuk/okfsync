@@ -15,23 +15,23 @@ tags:
 
 # Shared Brain
 
-Seed concept. Agents `bagsy get` then `bagsy propose --file`. The CLI cannot delete.
+Seed concept. Agents `kbsync get` then `kbsync propose --file`. The CLI cannot delete.
 "#;
 
-const CONFIG: &str = r#"# bagsy knowledge root
+const CONFIG: &str = r#"# okfsync knowledge root
 default_branch = "main"
 knowledge_root = "."
 "#;
 
 pub fn run(root: &Path, json: bool) -> Result<()> {
-    fs::create_dir_all(root.join(".bagsy"))?;
+    fs::create_dir_all(root.join(".okfsync"))?;
     fs::create_dir_all(root.join("concepts"))?;
 
-    let cfg = root.join(".bagsy/config.toml");
+    let cfg = root.join(".okfsync/config.toml");
     if !cfg.exists() {
         fs::write(&cfg, CONFIG)?;
     }
-    let tokens = root.join(".bagsy/tokens.toml");
+    let tokens = root.join(".okfsync/tokens.toml");
     if !tokens.exists() {
         fs::write(&tokens, "# per-agent bearer tokens (hashes only)\n")?;
         #[cfg(unix)]
@@ -49,10 +49,10 @@ pub fn run(root: &Path, json: bool) -> Result<()> {
     if !git::is_git_repo(root) {
         let cfg = Config::load(root)?;
         git::run_git_ok(root, &["init", "-b", &cfg.default_branch])?;
-        let _ = git::run_git_ok(root, &["config", "user.email", "bagsy@localhost"]);
-        let _ = git::run_git_ok(root, &["config", "user.name", "bagsy"]);
+        let _ = git::run_git_ok(root, &["config", "user.email", "okfsync@localhost"]);
+        let _ = git::run_git_ok(root, &["config", "user.name", "okfsync"]);
         git::run_git_ok(root, &["add", "."])?;
-        git::run_git_ok(root, &["commit", "-m", "bagsy init"])?;
+        git::run_git_ok(root, &["commit", "-m", "okfsync init"])?;
     }
 
     if !root.join("concepts").is_dir() {
@@ -69,13 +69,13 @@ pub fn run(root: &Path, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("initialized bagsy KB at {}", root.display());
+    println!("initialized okfsync KB at {}", root.display());
     println!("next:");
     println!(
-        "  bagsy token create --agent <id> --root {}",
+        "  kbsync token create --agent <id> --root {}",
         root.display()
     );
-    println!("  bagsy serve --root {}", root.display());
+    println!("  kbsync serve --root {}", root.display());
     Ok(())
 }
 
