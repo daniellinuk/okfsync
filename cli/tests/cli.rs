@@ -239,6 +239,8 @@ fn help_includes_examples() {
         vec!["get", "--help"],
         vec!["propose", "--help"],
         vec!["lint", "--help"],
+        vec!["whoami", "--help"],
+        vec!["doctor", "--help"],
         vec!["token", "create", "--help"],
         vec!["token", "revoke", "--help"],
         vec!["init", "--help"],
@@ -406,6 +408,12 @@ fn url_token_flags_are_agent_only() {
         .stdout(predicate::str::contains("--url").not());
     cargo_bin_cmd!("kbsync")
         .args(["get", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--url"))
+        .stdout(predicate::str::contains("--token"));
+    cargo_bin_cmd!("kbsync")
+        .args(["doctor", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("--url"))
@@ -644,4 +652,316 @@ fn server_rejects_revoked_token() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("revoked"));
+}
+
+#[test]
+fn help_usage_is_kbsync_not_artifact_name() {
+    cargo_bin_cmd!("kbsync")
+        .args(["propose", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Usage: kbsync"))
+        .stdout(predicate::str::contains("ops/foo"))
+        .stdout(predicate::str::contains("okfsync-linux-x64").not());
+}
+
+#[test]
+fn help_does_not_print_token_env_value() {
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_TOKEN", "kbs_LEAKME_do_not_print")
+        .env("KBSYNC_URL", "http://127.0.0.1:7432")
+        .args(["propose", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("kbs_LEAKME_do_not_print").not())
+        .stdout(predicate::str::contains("KBSYNC_TOKEN"));
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_TOKEN", "kbs_LEAKME_do_not_print")
+        .args(["list", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("kbs_LEAKME_do_not_print").not());
+}
+
+#[test]
+fn nested_concept_shorthand_normalizes() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    write_concept(
+        &root,
+        "concepts/ops/foo.md",
+        "---\ntype: Note\ntitle: Foo\n---\n\nnested.\n",
+    );
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["get", "ops/foo"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("nested."));
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["get", "ops/foo.md"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("nested."));
+}
+
+#[test]
+fn propose_without_file_fails_fast() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["propose", "brain"])
+        .write_stdin("---\ntype: Note\ntitle: X\n---\n\nnope\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("propose requires --file"));
+}
+
+#[test]
+fn propose_json_reason_unchanged() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    init_git(&root);
+    let md = root.join("brain.md");
+    fs::write(
+        &md,
+        fs::read_to_string(root.join("concepts/brain.md")).unwrap(),
+    )
+    .unwrap();
+    let out = cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["propose", "brain", "--file"])
+        .arg(&md)
+        .args(["--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["committed"], false);
+    assert_eq!(v["reason"], "unchanged");
+}
+
+#[test]
+fn search_joins_words_and_zero_hits_is_plain() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["search", "shared", "brain"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("concepts/brain.md"));
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["search", "zzznomatchxyz"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 hits for 'zzznomatchxyz'"))
+        .stdout(predicate::str::contains("kbsync list").not());
+}
+
+#[test]
+fn yaml_at_title_hints_to_quote() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let md = root.join("bad.md");
+    fs::write(&md, "---\ntype: Note\ntitle: @foo\n---\n\nbody\n").unwrap();
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["propose", "ops/bar", "--file"])
+        .arg(&md)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("quote values that start with @"));
+}
+
+#[test]
+fn missing_frontmatter_message() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["propose", "brain", "--file", "-"])
+        .write_stdin("# no yaml\n")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("must start with YAML frontmatter"));
+}
+
+#[test]
+fn json_token_env_is_rejected() {
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", "http://127.0.0.1:9")
+        .env("KBSYNC_TOKEN", "{\"token\":\"kbs_abc\"}")
+        .args(["whoami"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(".token"));
+}
+
+#[test]
+fn token_file_loads_bearer() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let tok = mint(&root, "filey");
+    let serve = start_serve(&root);
+    let token_path = root.join("filey.token");
+    fs::write(&token_path, &tok).unwrap();
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env_remove("KBSYNC_TOKEN")
+        .env("KBSYNC_TOKEN_FILE", token_path.as_os_str())
+        .args(["get", "brain"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Shared Brain"));
+}
+
+#[test]
+fn whoami_and_dry_run_use_token_agent() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let tok = mint(&root, "agent-a");
+    let serve = start_serve(&root);
+    let out = cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
+        .env_remove("KBSYNC_AGENT")
+        .args(["whoami", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["agent"], "agent-a");
+    assert_eq!(v["ok"], true);
+    assert!(v["token_fingerprint"].as_str().unwrap().len() >= 8);
+    assert!(!out.windows(tok.len()).any(|w| w == tok.as_bytes()));
+
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
+        .env("KBSYNC_AGENT", "someone-else")
+        .args(["whoami"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not match"));
+
+    let dry = cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
+        .args(["propose", "brain", "--file", "-", "--dry-run", "--json"])
+        .write_stdin("---\ntype: Playbook\ntitle: Shared Brain\n---\n\nWould not save.\n")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let d: Value = serde_json::from_slice(&dry).unwrap();
+    assert_eq!(d["agent"], "agent-a");
+    assert_ne!(d["agent"], "token");
+    assert_eq!(d["reason"], "dry-run");
+    assert_eq!(d["committed"], false);
+}
+
+#[test]
+fn get_json_includes_provenance_after_git() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    init_git(&root);
+    let out = cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .args(["get", "brain", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["updated_by"], "okfsync");
+    assert!(v["updated_at"].as_str().unwrap().len() > 8);
+}
+
+#[test]
+fn doctor_reports_concept_count_locally() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    let out = cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .env_remove("KBSYNC_URL")
+        .env_remove("KBSYNC_TOKEN")
+        .env_remove("KBSYNC_TOKEN_FILE")
+        .args(["doctor", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["mode"], "local");
+    assert_eq!(v["concepts"], 2);
+    assert_eq!(v["by_type"]["Playbook"], 2);
+    assert_eq!(v["git_repo"], false);
+    let text = cargo_bin_cmd!("kbsync")
+        .current_dir(&root)
+        .env_remove("KBSYNC_URL")
+        .env_remove("KBSYNC_TOKEN")
+        .args(["doctor"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let s = String::from_utf8_lossy(&text);
+    assert!(s.contains("concepts:   2"), "{s}");
+    assert!(
+        s.contains("pushed:false") || s.contains("committed:false"),
+        "{s}"
+    );
+}
+
+#[test]
+fn doctor_remote_includes_agent_and_count() {
+    let tmp = TempDir::new().unwrap();
+    let root = init_okf(&tmp);
+    init_git(&root);
+    let tok = mint(&root, "doc");
+    let serve = start_serve(&root);
+    let out = cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", &serve.url)
+        .env("KBSYNC_TOKEN", &tok)
+        .env_remove("KBSYNC_AGENT")
+        .args(["doctor", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["mode"], "remote");
+    assert_eq!(v["reachable"], true);
+    assert_eq!(v["agent"], "doc");
+    assert_eq!(v["concepts"], 2);
+    assert_eq!(v["git_repo"], true);
+    assert_eq!(v["git_origin"], false);
+    assert!(!out.windows(tok.len()).any(|w| w == tok.as_bytes()));
+}
+
+#[test]
+fn doctor_unreachable_server_fails() {
+    cargo_bin_cmd!("kbsync")
+        .env("KBSYNC_URL", "http://127.0.0.1:9")
+        .env("KBSYNC_TOKEN", "kbs_notarealtoken")
+        .args(["doctor", "--json"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("\"ok\":false"))
+        .stdout(predicate::str::contains("kbs_notarealtoken").not());
 }

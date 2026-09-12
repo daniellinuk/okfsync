@@ -22,16 +22,19 @@ pub struct Concept {
 }
 
 pub fn normalize_concept_path(concept: &str) -> Result<String> {
-    let mut c = concept.trim().trim_start_matches("./").to_string();
-    if c.starts_with('/') {
-        c = c.trim_start_matches('/').to_string();
+    let mut c = concept.trim().replace('\\', "/");
+    while let Some(rest) = c.strip_prefix("./") {
+        c = rest.to_string();
     }
-    c = c.replace('\\', "/");
+    c = c.trim_start_matches('/').to_string();
+    if c.is_empty() {
+        bail!("concept path required\n  kbsync get brain\n  kbsync get ops/foo\n  kbsync list");
+    }
+    if !c.starts_with("concepts/") {
+        c = format!("concepts/{c}");
+    }
     if !c.ends_with(".md") {
         c.push_str(".md");
-    }
-    if !c.contains('/') && !c.starts_with("concepts/") {
-        c = format!("concepts/{c}");
     }
     assert_safe_concept_rel(&c)?;
     Ok(c)
@@ -44,11 +47,15 @@ pub fn assert_safe_concept_rel(rel: &str) -> Result<()> {
         bail!("invalid concept path");
     }
     if !rel.starts_with("concepts/") || !rel.ends_with(".md") {
-        bail!("concepts must be markdown files under concepts/");
+        bail!(
+            "concepts must be markdown files under concepts/\n  try: concepts/{rel}\n  kbsync get ops/foo\n  kbsync list"
+        );
     }
     for part in rel.split('/') {
         if part.is_empty() || part == "." || part == ".." {
-            bail!("refusing concept path '{rel}'");
+            bail!(
+                "refusing concept path '{rel}'\n  try: a path under concepts/ (e.g. ops/foo or concepts/ops/foo.md)\n  kbsync list"
+            );
         }
     }
     Ok(())
@@ -57,7 +64,9 @@ pub fn assert_safe_concept_rel(rel: &str) -> Result<()> {
 pub fn parse_frontmatter(text: &str) -> Result<(Frontmatter, String)> {
     let text = text.trim_start_matches('\u{feff}');
     if !text.starts_with("---") {
-        bail!("missing YAML frontmatter (OKF requires --- type: ... ---)");
+        bail!(
+            "must start with YAML frontmatter (--- ... ---)\n  ---\n  type: Note\n  title: \"My title\"\n  ---\n"
+        );
     }
     let rest = &text[3..];
     let end = rest
@@ -65,7 +74,16 @@ pub fn parse_frontmatter(text: &str) -> Result<(Frontmatter, String)> {
         .context("unterminated YAML frontmatter")?;
     let yaml = rest[..end].trim();
     let body = rest[end + 4..].trim_start_matches('\n').to_string();
-    let fm: Frontmatter = serde_yaml::from_str(yaml).context("parsing OKF frontmatter")?;
+    let fm: Frontmatter = match serde_yaml::from_str(yaml) {
+        Ok(fm) => fm,
+        Err(e) => {
+            let mut msg = format!("parsing OKF frontmatter: {e}");
+            if yaml.contains('@') {
+                msg.push_str("\n  quote values that start with @, e.g. title: \"@foo\"");
+            }
+            bail!("{msg}");
+        }
+    };
     if fm.r#type.trim().is_empty() {
         bail!("frontmatter `type` must be a non-empty string");
     }
@@ -88,7 +106,7 @@ pub fn load_document(root: &Path, concept: &str) -> Result<Document> {
     let path = root.join(&rel);
     ensure_under_concepts(root, &path)?;
     if !path.exists() {
-        bail!("concept not found: {rel}\n  kbsync list\n  kbsync search <query>\n  kbsync get brain");
+        bail!("concept not found: {rel}\n  kbsync list\n  kbsync search <query>\n  kbsync get brain\n  try: concepts/ops/foo.md");
     }
     let markdown =
         fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
@@ -187,13 +205,15 @@ pub fn summaries(root: &Path) -> Result<Vec<crate::api::ConceptSummary>> {
     for path in list_concepts(root)? {
         let rel = rel_from_root(root, &path);
         out.push(match read_concept(root, &rel) {
-            Ok(c) => summary_from(&c),
+            Ok(c) => summary_from(root, &c),
             Err(_) => crate::api::ConceptSummary {
                 rel,
                 r#type: String::new(),
                 title: None,
                 description: None,
                 tags: vec![],
+                updated_by: None,
+                updated_at: None,
             },
         });
     }
@@ -212,19 +232,22 @@ pub fn search_concepts(root: &Path, query: &str) -> Result<Vec<crate::api::Conce
             continue;
         };
         if document_matches(&doc, &q) {
-            hits.push(summary_from(&doc.concept));
+            hits.push(summary_from(root, &doc.concept));
         }
     }
     Ok(hits)
 }
 
-fn summary_from(c: &Concept) -> crate::api::ConceptSummary {
+fn summary_from(root: &Path, c: &Concept) -> crate::api::ConceptSummary {
+    let (updated_by, updated_at) = crate::git::file_provenance(root, &c.rel);
     crate::api::ConceptSummary {
         rel: c.rel.clone(),
         r#type: c.frontmatter.r#type.clone(),
         title: c.frontmatter.title.clone(),
         description: c.frontmatter.description.clone(),
         tags: c.frontmatter.tags.clone(),
+        updated_by,
+        updated_at,
     }
 }
 
@@ -252,4 +275,37 @@ pub fn rel_from_root(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .map(|p| p.to_string_lossy().replace('\\', "/"))
         .unwrap_or_else(|_| path.to_string_lossy().replace('\\', "/"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_concept_path;
+
+    #[test]
+    fn normalize_shorthand_and_nested() {
+        let cases = [
+            ("brain", "concepts/brain.md"),
+            ("brain.md", "concepts/brain.md"),
+            ("concepts/brain", "concepts/brain.md"),
+            ("concepts/brain.md", "concepts/brain.md"),
+            ("ops/foo", "concepts/ops/foo.md"),
+            ("ops/foo.md", "concepts/ops/foo.md"),
+            ("concepts/ops/foo", "concepts/ops/foo.md"),
+            ("concepts/ops/foo.md", "concepts/ops/foo.md"),
+            ("./ops/foo", "concepts/ops/foo.md"),
+        ];
+        for (input, want) in cases {
+            assert_eq!(
+                normalize_concept_path(input).unwrap(),
+                want,
+                "input {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn normalize_rejects_parent_dir() {
+        assert!(normalize_concept_path("../secrets").is_err());
+        assert!(normalize_concept_path("concepts/../secrets").is_err());
+    }
 }

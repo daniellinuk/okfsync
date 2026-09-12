@@ -23,7 +23,7 @@ function packageVersion() {
   return require("../package.json").version;
 }
 
-/** vendor/okfsync-linux-x64-0.1.2 — version in the name so upgrades cannot keep a stale kbsync. */
+/** vendor/okfsync-linux-x64-<version> — version in the name so upgrades cannot keep a stale kbsync. */
 function vendorArtifactName() {
   const pkg = PLATFORM_MAP[platformKey()];
   if (!pkg) return null;

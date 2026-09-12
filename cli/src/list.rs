@@ -28,14 +28,12 @@ pub fn print_pages(concepts: &[ConceptSummary], json: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn print_search_hits(concepts: &[ConceptSummary], json: bool) -> Result<()> {
+pub fn print_search_hits(concepts: &[ConceptSummary], query: &str, json: bool) -> Result<()> {
     if json {
         return print_pages(concepts, true);
     }
     if concepts.is_empty() {
-        println!("no matches");
-        println!("  kbsync list");
-        println!("  kbsync search <query>");
+        println!("0 hits for '{query}'");
         return Ok(());
     }
     print_pages(concepts, false)
@@ -46,5 +44,5 @@ pub fn run_list(root: &Path, json: bool) -> Result<()> {
 }
 
 pub fn run_search(root: &Path, query: &str, json: bool) -> Result<()> {
-    print_search_hits(&okf::search_concepts(root, query)?, json)
+    print_search_hits(&okf::search_concepts(root, query)?, query, json)
 }
