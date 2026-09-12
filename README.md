@@ -35,15 +35,13 @@ bun add -g okfsync
 kbsync --help
 ```
 
-`0.1.0` ships a **Linux x64** binary. Other platforms: build from this repo (needs **rustc ≥ 1.88**):
+`0.1.1` ships a **Linux x64** binary. Other platforms: build from this repo (needs **rustc ≥ 1.88**):
 
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml
 export PATH="$PWD/cli/target/release:$PATH"
 kbsync --help
 ```
-
-This is not the PyPI package `bagsy`. Do not `pip install bagsy`.
 
 ## For review agents (read first)
 

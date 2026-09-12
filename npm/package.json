@@ -1,7 +1,11 @@
 {
   "name": "okfsync",
-  "version": "0.1.0",
-  "description": "A concept wiki so your agents don't clobber the brain. Prebuilt binary wrapper for the okfsync CLI (`kbsync`).",
+  "version": "0.1.1",
+  "description": "A concept wiki so your agents don't clobber the brain. CLI command: kbsync.",
+  "homepage": "https://github.com/daniellinuk/okfsync",
+  "bugs": {
+    "url": "https://github.com/daniellinuk/okfsync/issues"
+  },
   "license": "MIT",
   "bin": {
     "kbsync": "bin/kbsync.js"
