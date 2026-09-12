@@ -1,15 +1,22 @@
 "use strict";
 
 /**
- * postinstall — for published releases, download the matching prebuilt binary
- * into npm/vendor/. In the monorepo (or when KBSYNC_SKIP_DOWNLOAD=1), no-op if
- * a local cargo build already satisfies resolveBinary().
+ * postinstall — download a versioned prebuilt if this package did not
+ * already ship `vendor/okfsync-<platform>-<version>`. A leftover
+ * `vendor/kbsync` from 0.1.0/0.1.1 is ignored.
+ * KBSYNC_SKIP_DOWNLOAD=1 skips the network (CI / monorepo).
  */
 
 const fs = require("node:fs");
 const path = require("node:path");
 const https = require("node:https");
-const { resolveBinary, platformKey, PLATFORM_MAP } = require("./resolve");
+const {
+  resolveBinary,
+  platformKey,
+  PLATFORM_MAP,
+  packageVersion,
+  vendorBinaryPath,
+} = require("./resolve");
 
 const RELEASE_BASE =
   process.env.KBSYNC_RELEASE_BASE ||
@@ -52,6 +59,14 @@ async function main() {
     return;
   }
 
+  const dest = vendorBinaryPath();
+  if (dest && fs.existsSync(dest) && fs.statSync(dest).isFile()) {
+    log(`using ${dest}`);
+    return;
+  }
+
+  // Unversioned vendor/kbsync is not a candidate, so a leftover 0.1.x
+  // binary does not skip this install. A monorepo cargo build still does.
   const existing = resolveBinary();
   if (existing) {
     log(`using existing binary at ${existing}`);
@@ -64,19 +79,15 @@ async function main() {
     log(`no prebuilt binary mapping for ${key}; build from /cli with cargo`);
     return;
   }
+  if (!dest) {
+    log(`no vendor path for ${key}`);
+    return;
+  }
 
-  const version = require("../package.json").version;
-  const asset =
-    process.platform === "win32"
-      ? `${pkg}.exe`
-      : `${pkg}`;
+  const version = packageVersion();
+  const asset = process.platform === "win32" ? `${pkg}.exe` : `${pkg}`;
   const url = `${RELEASE_BASE}/v${version}/${asset}`;
-  const vendorDir = path.join(__dirname, "..", "vendor");
-  fs.mkdirSync(vendorDir, { recursive: true });
-  const dest = path.join(
-    vendorDir,
-    process.platform === "win32" ? "kbsync.exe" : "kbsync"
-  );
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
 
   log(`downloading ${url}`);
   try {

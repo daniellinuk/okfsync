@@ -13,9 +13,10 @@ const bin = resolveBinary();
 if (!bin) {
   console.error(
     [
-      "kbsync: could not find a kbsync binary.",
-      "Tried platform package, KBSYNC_BIN, and monorepo release build.",
-      "Fix: from the monorepo run `cargo build --release -p okfsync` (or `bun run build:cli`),",
+      "kbsync: could not find a kbsync binary for this package version.",
+      "Tried KBSYNC_BIN, platform package, versioned vendor/, and monorepo cargo build.",
+      "Fix: bun add -g okfsync (or npm i -g okfsync), or from the monorepo:",
+      "  cargo build --release --manifest-path cli/Cargo.toml",
       "or set KBSYNC_BIN to the kbsync executable path.",
     ].join("\n")
   );

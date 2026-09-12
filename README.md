@@ -35,7 +35,7 @@ bun add -g okfsync
 kbsync --help
 ```
 
-`0.1.1` ships a **Linux x64** binary. Other platforms: build from this repo (needs **rustc ≥ 1.88**):
+`0.1.2` ships a **Linux x64** binary (`kbsync -V` matches the npm version). Other platforms: build from this repo (needs **rustc ≥ 1.88**):
 
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml

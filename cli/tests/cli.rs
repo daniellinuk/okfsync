@@ -145,6 +145,15 @@ fn mint(root: &Path, agent: &str) -> String {
 }
 
 #[test]
+fn version_flag_matches_crate() {
+    cargo_bin_cmd!("kbsync")
+        .arg("-V")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
 fn get_prints_concept_locally() {
     let tmp = TempDir::new().unwrap();
     let root = init_okf(&tmp);
