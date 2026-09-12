@@ -24,6 +24,27 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 /template  Minimal OKF concepts + wiki demo
 ```
 
+## Install
+
+The npm package is [okfsync](https://www.npmjs.com/package/okfsync). After install the command is **`kbsync`**. Agents do not need this GitHub repo.
+
+```bash
+bun add -g okfsync
+# or: npm i -g okfsync
+# or: pnpm add -g okfsync
+kbsync --help
+```
+
+`0.1.0` ships a **Linux x64** binary. Other platforms: build from this repo (needs **rustc ≥ 1.88**):
+
+```bash
+cargo build --release --manifest-path cli/Cargo.toml
+export PATH="$PWD/cli/target/release:$PATH"
+kbsync --help
+```
+
+This is not the PyPI package `bagsy`. Do not `pip install bagsy`.
+
 ## For review agents (read first)
 
 - **Canonical agent playbook:** [AGENTS.md](./AGENTS.md) (also linked as `CLAUDE.md`).
@@ -82,24 +103,6 @@ kbsync get brain
 kbsync propose brain --file ./brain.md
 kbsync lint
 ```
-
-## Install
-
-### From this monorepo (works today)
-
-Needs a recent stable Rust. The current lockfile requires **rustc ≥ 1.88** (`rustup update stable`).
-
-```bash
-cargo build --release --manifest-path cli/Cargo.toml
-export PATH="$PWD/cli/target/release:$PATH"
-kbsync --help
-```
-
-### Via bun / npm / pnpm
-
-Not published yet. `bun add -g okfsync` / `npm i -g okfsync` will not work until the `okfsync` package is on npmjs **and** GitHub Release binaries exist for this version. After install, the command is `kbsync`. Until then, use the source build above.
-
-This is not the PyPI package `bagsy` (a ROS bag CLI). Do not `pip install bagsy`.
 
 ## Owner: local server
 
