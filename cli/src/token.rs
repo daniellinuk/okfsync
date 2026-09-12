@@ -196,18 +196,41 @@ pub fn revoke_by_agent(
     Ok((revoked, true))
 }
 
-/// Resolve a presented bearer token to the agent name, if it is active.
-pub fn authenticate(root: &Path, presented: &str) -> Result<String> {
+/// SHA-256 hex prefix of the bearer (not the secret). Safe for whoami / logs.
+pub fn fingerprint(presented: &str) -> String {
+    hash_token(presented.trim()).chars().take(12).collect()
+}
+
+/// Reject pasted JSON / token-store blobs. Does not authenticate.
+pub fn validate_bearer_shape(presented: &str) -> Result<()> {
     let presented = presented.trim();
     if presented.is_empty() {
         bail!("missing token");
     }
+    let looks_json = presented.starts_with('{') || presented.starts_with('[');
+    if looks_json {
+        bail!(
+            "token looks like a JSON object, not a bearer\n  use the `.token` field from `kbsync token create --json` (kbs_…)\n  export KBSYNC_TOKEN=kbs_…\n  export KBSYNC_TOKEN_FILE=/path/to/agent.token"
+        );
+    }
+    Ok(())
+}
+
+/// Resolve a presented bearer token to the agent name, if it is active.
+pub fn authenticate(root: &Path, presented: &str) -> Result<String> {
+    Ok(authenticate_record(root, presented)?.agent)
+}
+
+/// Resolve a presented bearer to the matching token record, if it is active.
+pub fn authenticate_record(root: &Path, presented: &str) -> Result<TokenRecord> {
+    let presented = presented.trim();
+    validate_bearer_shape(presented)?;
     let hash = hash_token(presented);
     let store = load(root)?;
     match store.tokens.iter().find(|t| t.secret_hash == hash) {
         None => bail!("invalid token"),
         Some(t) if !t.is_active() => bail!("token '{}' has been revoked", t.id),
-        Some(t) => Ok(t.agent.clone()),
+        Some(t) => Ok(t.clone()),
     }
 }
 
@@ -252,5 +275,13 @@ mod tests {
         let (n2, changed2) = revoke_by_agent(tmp.path(), "carol", false).unwrap();
         assert!(n2.is_empty());
         assert!(!changed2);
+    }
+
+    #[test]
+    fn json_blob_is_not_a_bearer() {
+        let err = validate_bearer_shape("{\"token\":\"kbs_abc\"}").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains(".token"), "{msg}");
+        assert!(authenticate_record(root().path(), "{\"token\":\"x\"}").is_err());
     }
 }

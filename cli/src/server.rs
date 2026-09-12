@@ -14,8 +14,8 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use crate::api::{
-    ConceptResponse, ErrorBody, HealthResponse, LintResponse, PagesResponse, ProposeRequest,
-    ProposeResponse, API_VERSION,
+    ConceptResponse, DoctorResponse, ErrorBody, HealthResponse, LintResponse, PagesResponse,
+    ProposeRequest, ProposeResponse, WhoamiResponse, API_VERSION,
 };
 use crate::git;
 use crate::okf;
@@ -33,7 +33,7 @@ fn err(status: StatusCode, msg: impl Into<String>) -> ApiError {
     (status, Json(ErrorBody { error: msg.into() }))
 }
 
-fn agent_from(headers: &HeaderMap, root: &std::path::Path) -> Result<String, ApiError> {
+fn presented_token(headers: &HeaderMap) -> Option<String> {
     let raw = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
@@ -43,17 +43,36 @@ fn agent_from(headers: &HeaderMap, root: &std::path::Path) -> Result<String, Api
         .or_else(|| raw.strip_prefix("bearer "))
         .unwrap_or(raw)
         .trim();
-    if presented.is_empty() {
-        if let Some(alt) = headers.get("x-kbsync-token").and_then(|v| v.to_str().ok()) {
-            return token::authenticate(root, alt.trim())
-                .map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()));
-        }
+    if !presented.is_empty() {
+        return Some(presented.to_string());
+    }
+    headers
+        .get("x-kbsync-token")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn auth_from(headers: &HeaderMap, root: &std::path::Path) -> Result<token::TokenRecord, ApiError> {
+    let Some(presented) = presented_token(headers) else {
         return Err(err(
             StatusCode::UNAUTHORIZED,
             "missing bearer token (Authorization: Bearer … or KBSYNC_TOKEN)",
         ));
-    }
-    token::authenticate(root, presented).map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()))
+    };
+    token::authenticate_record(root, &presented)
+        .map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()))
+}
+
+fn agent_from(headers: &HeaderMap, root: &std::path::Path) -> Result<String, ApiError> {
+    let Some(presented) = presented_token(headers) else {
+        return Err(err(
+            StatusCode::UNAUTHORIZED,
+            "missing bearer token (Authorization: Bearer … or KBSYNC_TOKEN)",
+        ));
+    };
+    token::authenticate(root, &presented).map_err(|e| err(StatusCode::UNAUTHORIZED, e.to_string()))
 }
 
 async fn health() -> Json<HealthResponse> {
@@ -78,6 +97,7 @@ async fn get_concept(
     let doc = okf::load_document(&st.root, &q.path)
         .map_err(|e| err(StatusCode::NOT_FOUND, e.to_string()))?;
     let c = doc.concept;
+    let (updated_by, updated_at) = git::file_provenance(&st.root, &c.rel);
     Ok(Json(ConceptResponse {
         rel: c.rel,
         r#type: c.frontmatter.r#type,
@@ -86,6 +106,8 @@ async fn get_concept(
         tags: c.frontmatter.tags,
         body: c.body,
         markdown: doc.markdown,
+        updated_by,
+        updated_at,
     }))
 }
 
@@ -134,12 +156,71 @@ async fn post_proposal(
             err(StatusCode::INTERNAL_SERVER_ERROR, msg)
         }
     })?;
+    let reason = out.reason().to_string();
     Ok(Json(ProposeResponse {
         concept: out.rel,
         agent,
         committed: out.committed,
         pushed: out.pushed,
         message: "ok".into(),
+        reason,
+    }))
+}
+
+async fn whoami(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<WhoamiResponse>, ApiError> {
+    let rec = auth_from(&headers, &st.root)?;
+    Ok(Json(WhoamiResponse {
+        ok: true,
+        agent: rec.agent,
+        token_id: rec.id,
+    }))
+}
+
+async fn doctor(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<DoctorResponse>, ApiError> {
+    let rec = auth_from(&headers, &st.root)?;
+    let pages = crate::okf::summaries(&st.root)
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let lint = crate::lint::collect(&st.root)
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let git_repo = git::is_git_repo(&st.root);
+    let git_branch = if git_repo {
+        git::current_branch(&st.root).ok()
+    } else {
+        None
+    };
+    let git_origin = git_repo && git::has_remote(&st.root, "origin");
+    let tokens_active = token::list(&st.root)
+        .map(|t| t.iter().filter(|t| t.is_active()).count())
+        .unwrap_or(0);
+    let mut by_type = std::collections::BTreeMap::new();
+    for c in &pages {
+        let key = if c.r#type.trim().is_empty() {
+            "(none)".to_string()
+        } else {
+            c.r#type.clone()
+        };
+        *by_type.entry(key).or_insert(0) += 1;
+    }
+    Ok(Json(DoctorResponse {
+        ok: true,
+        version: env!("CARGO_PKG_VERSION").into(),
+        api: API_VERSION.into(),
+        agent: rec.agent,
+        token_id: rec.id,
+        concepts: pages.len(),
+        by_type,
+        lint_errors: lint.errors.len(),
+        lint_warnings: lint.warnings.len(),
+        git_repo,
+        git_branch,
+        git_origin,
+        tokens_active,
     }))
 }
 
@@ -231,6 +312,8 @@ pub async fn run(
         .route("/v1/pages", get(list_pages).delete(reject_delete))
         .route("/v1/proposals", post(post_proposal).delete(reject_delete))
         .route("/v1/lint", get(get_lint).delete(reject_delete))
+        .route("/v1/whoami", get(whoami).delete(reject_delete))
+        .route("/v1/doctor", get(doctor).delete(reject_delete))
         .fallback(fallback)
         .with_state(state);
 
@@ -251,7 +334,9 @@ pub async fn run(
     } else {
         println!("kbsync serve listening on http://{local}");
         println!("  data dir: {}", root.display());
-        println!("  api:      /health  /v1/concepts|pages|proposals|lint  (no delete)");
+        println!(
+            "  api:      /health  /v1/concepts|pages|proposals|lint|whoami|doctor  (no delete)"
+        );
         if n_active == 0 {
             println!(
                 "  tokens:   none (create with kbsync token create --agent <id> --root {})",

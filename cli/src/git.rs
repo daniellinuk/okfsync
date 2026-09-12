@@ -105,3 +105,23 @@ pub fn push_head(root: &Path) -> Result<()> {
     let branch = current_branch(root)?;
     push_branch(root, &branch)
 }
+
+/// Last git author + author date for a concept file. Best-effort; None if no repo/history.
+pub fn file_provenance(root: &Path, rel: &str) -> (Option<String>, Option<String>) {
+    if !is_git_repo(root) {
+        return (None, None);
+    }
+    let output = match run_git(root, &["log", "-1", "--format=%an%x09%aI", "--", rel]) {
+        Ok(o) if o.status.success() => o,
+        _ => return (None, None),
+    };
+    let line = String::from_utf8_lossy(&output.stdout);
+    let line = line.trim();
+    if line.is_empty() {
+        return (None, None);
+    }
+    match line.split_once('\t') {
+        Some((name, at)) if !name.is_empty() => (Some(name.to_string()), Some(at.to_string())),
+        _ => (None, None),
+    }
+}

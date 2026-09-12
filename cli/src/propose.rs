@@ -19,6 +19,19 @@ pub struct ProposeJson {
     pub committed: bool,
     pub pushed: bool,
     pub dry_run: bool,
+    pub reason: String,
+}
+
+impl Outcome {
+    pub fn reason(&self) -> &'static str {
+        if self.dry_run {
+            "dry-run"
+        } else if self.committed {
+            "committed"
+        } else {
+            "unchanged"
+        }
+    }
 }
 
 /// Create or overwrite one concept. Never deletes files.
@@ -69,6 +82,7 @@ pub fn print_outcome(out: &Outcome, agent: &str, json: bool) -> Result<()> {
                 committed: out.committed,
                 pushed: out.pushed,
                 dry_run: out.dry_run,
+                reason: out.reason().to_string(),
             })
             .context("json propose")?
         );
@@ -79,6 +93,7 @@ pub fn print_outcome(out: &Outcome, agent: &str, json: bool) -> Result<()> {
         println!("  agent:     {agent}");
         println!("  committed: false");
         println!("  pushed:    false");
+        println!("  reason:    {}", out.reason());
         return Ok(());
     }
     if !out.committed {
@@ -86,11 +101,13 @@ pub fn print_outcome(out: &Outcome, agent: &str, json: bool) -> Result<()> {
         println!("  agent:     {agent}");
         println!("  committed: false");
         println!("  pushed:    false");
+        println!("  reason:    {}", out.reason());
     } else {
         println!("proposed '{}'", out.rel);
         println!("  agent:     {agent}");
         println!("  committed: true");
         println!("  pushed:    {}", out.pushed);
+        println!("  reason:    {}", out.reason());
     }
     Ok(())
 }

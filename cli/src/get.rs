@@ -15,11 +15,14 @@ pub struct GetJson {
     pub tags: Vec<String>,
     pub body: String,
     pub markdown: String,
+    pub updated_by: Option<String>,
+    pub updated_at: Option<String>,
 }
 
 impl GetJson {
-    pub fn from_document(doc: &okf::Document) -> Self {
+    pub fn from_document(root: &Path, doc: &okf::Document) -> Self {
         let c = &doc.concept;
+        let (updated_by, updated_at) = crate::git::file_provenance(root, &c.rel);
         Self {
             rel: c.rel.clone(),
             r#type: c.frontmatter.r#type.clone(),
@@ -28,6 +31,8 @@ impl GetJson {
             tags: c.frontmatter.tags.clone(),
             body: c.body.clone(),
             markdown: doc.markdown.clone(),
+            updated_by,
+            updated_at,
         }
     }
 
@@ -45,6 +50,8 @@ impl GetJson {
             tags: c.tags.clone(),
             body: c.body.clone(),
             markdown,
+            updated_by: c.updated_by.clone(),
+            updated_at: c.updated_at.clone(),
         }
     }
 }
@@ -90,7 +97,7 @@ pub fn print_json(v: &GetJson) -> Result<()> {
 pub fn run(root: &Path, concept: &str, json: bool) -> Result<()> {
     let doc = okf::load_document(root, concept)?;
     if json {
-        print_json(&GetJson::from_document(&doc))
+        print_json(&GetJson::from_document(root, &doc))
     } else {
         print_markdown(&doc.markdown);
         Ok(())

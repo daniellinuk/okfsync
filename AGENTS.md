@@ -20,13 +20,13 @@ Typical **owner** flow:
 
 Typical **worker** flow:
 
-1. `KBSYNC_URL` + `KBSYNC_TOKEN`
-2. `kbsync list` / `kbsync search <query>` → `kbsync get brain > brain.md` → edit → `kbsync propose brain --file brain.md`
+1. `KBSYNC_URL` + `KBSYNC_TOKEN` (or `KBSYNC_TOKEN_FILE`)
+2. `kbsync doctor` / `kbsync whoami` → `kbsync list` / `kbsync search <query>` → `kbsync get brain > brain.md` → edit → `kbsync propose brain --file brain.md`
 3. `kbsync lint`
 
-`--url` / `--token` exist only on agent commands (`list` `search` `get` `propose` `lint`), not on `init`/`serve`/`token`.
+`--url` / `--token` / `--token-file` exist only on agent commands (`list` `search` `get` `propose` `lint` `whoami` `doctor`), not on `init`/`serve`/`token`.
 
-`get --help` / `propose --help` include copy-pasteable examples. `--json` is machine-readable. `propose --file -` reads stdin. There is no `claim` or `release`.
+`get --help` / `propose --help` include copy-pasteable examples (including nested paths like `ops/foo`). `--json` is machine-readable. `propose` requires `--file <path>` or `--file -`. There is no `claim` or `release`.
 
 ## Layout
 
@@ -63,7 +63,7 @@ Keep the wiki demo green (`bun run demo` / `bun run test:template`).
 
 Owner: `init`, `serve`, `token create|list|revoke`.
 
-Agents: `list`, `search`, `get`, `propose --file`, `lint` with `KBSYNC_URL` + `KBSYNC_TOKEN`.
+Agents: `list`, `search`, `get`, `propose --file`, `whoami`, `doctor`, `lint` with `KBSYNC_URL` + `KBSYNC_TOKEN` (or `KBSYNC_TOKEN_FILE`).
 
 Token identity wins over `--agent` in server mode.
 

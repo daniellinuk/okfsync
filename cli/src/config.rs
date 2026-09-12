@@ -74,6 +74,10 @@ pub fn resolve_root(explicit: Option<&Path>) -> Result<PathBuf> {
     Ok(cwd)
 }
 
+pub fn looks_like_kb(root: &Path) -> bool {
+    root.join("concepts").is_dir() || root.join(".okfsync").is_dir()
+}
+
 pub fn default_agent(explicit: Option<&str>) -> String {
     if let Some(a) = explicit {
         return a.to_string();

@@ -6,6 +6,7 @@
 mod api;
 mod client;
 mod config;
+mod doctor;
 mod get;
 mod git;
 mod init;
@@ -21,13 +22,16 @@ use clap::error::ErrorKind;
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
 use std::fs;
-use std::io::{IsTerminal, Read};
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+
+use crate::api::WhoamiResponse;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "kbsync",
+    bin_name = "kbsync",
     version = env!("CARGO_PKG_VERSION"),
     about = "A concept wiki so your agents don't clobber the brain.",
     long_about = "OSS CLI for a multi-agent OKF wiki.\n\
@@ -39,6 +43,8 @@ The KB owner runs init/serve/token on the data directory. Gardening is out of ba
   kbsync search --help
   kbsync get --help
   kbsync propose --help
+  kbsync whoami --help
+  kbsync doctor --help
   kbsync lint --help
   kbsync token --help
   kbsync init --help
@@ -46,27 +52,39 @@ The KB owner runs init/serve/token on the data directory. Gardening is out of ba
 )]
 struct Cli {
     /// Path to the OKF knowledge root (directory containing concepts/).
-    #[arg(long, global = true, env = "KBSYNC_ROOT")]
+    #[arg(long, global = true, env = "KBSYNC_ROOT", hide_env_values = true)]
     root: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,
 }
 
-/// Server connection (agent commands only). Env: KBSYNC_URL, KBSYNC_TOKEN.
+/// Server connection (agent commands only). Env: KBSYNC_URL, KBSYNC_TOKEN, KBSYNC_TOKEN_FILE.
 #[derive(Debug, Clone, Args)]
 struct ServerOpts {
     /// okfsync server URL (agent mode). Example: http://127.0.0.1:7432
-    #[arg(long, env = "KBSYNC_URL")]
+    #[arg(long, env = "KBSYNC_URL", hide_env_values = true)]
     url: Option<String>,
     /// Bearer token issued by `kbsync token create` (agent mode)
-    #[arg(long, env = "KBSYNC_TOKEN")]
+    #[arg(long, env = "KBSYNC_TOKEN", hide_env_values = true)]
     token: Option<String>,
+    /// File with the kbs_… secret (or a KBSYNC_TOKEN= line). chmod 600.
+    #[arg(
+        long = "token-file",
+        env = "KBSYNC_TOKEN_FILE",
+        value_name = "PATH",
+        hide_env_values = true
+    )]
+    token_file: Option<PathBuf>,
 }
 
 impl ServerOpts {
     fn remote(&self) -> Result<Option<client::Remote>> {
-        client::from_opts(self.url.as_deref(), self.token.as_deref())
+        client::from_opts(
+            self.url.as_deref(),
+            self.token.as_deref(),
+            self.token_file.as_deref(),
+        )
     }
 }
 
@@ -113,7 +131,7 @@ enum Commands {
     #[command(after_help = "Examples:
   kbsync list
   kbsync list --json
-  kbsync list --url http://127.0.0.1:7432 --token \"$KBSYNC_TOKEN\"")]
+  kbsync list --url http://127.0.0.1:7432 --token-file /path/to/agent.token")]
     List {
         /// Machine-readable JSON on stdout
         #[arg(long)]
@@ -124,11 +142,13 @@ enum Commands {
     /// Search path, title, tags, and body; prints summaries (then get).
     #[command(after_help = "Examples:
   kbsync search routing
+  kbsync search shared brain
   kbsync search \"shared brain\" --json
-  kbsync search routing --url http://127.0.0.1:7432 --token \"$KBSYNC_TOKEN\"")]
+  kbsync search routing --url http://127.0.0.1:7432 --token-file /path/to/agent.token")]
     Search {
-        /// Substring to match (quote multi-word queries)
-        query: Option<String>,
+        /// Substring to match (words are joined; quotes optional)
+        #[arg(value_name = "QUERY")]
+        query: Vec<String>,
         /// Machine-readable JSON on stdout
         #[arg(long)]
         json: bool,
@@ -138,11 +158,13 @@ enum Commands {
     /// Read a concept (raw markdown, round-trips into propose).
     #[command(after_help = "Examples:
   kbsync get brain
-  kbsync get brain --json
-  kbsync get brain --url http://127.0.0.1:7432 --token \"$KBSYNC_TOKEN\"
+  kbsync get ops/foo
+  kbsync get concepts/ops/foo.md
+  kbsync get ops/foo --json
+  kbsync get brain --url http://127.0.0.1:7432 --token-file /path/to/agent.token
   kbsync get brain > /tmp/brain.md")]
     Get {
-        /// Concept path, e.g. brain or concepts/brain.md
+        /// Concept path: brain, ops/foo, or concepts/ops/foo.md
         concept: Option<String>,
         /// Machine-readable JSON (includes `markdown` for propose)
         #[arg(long)]
@@ -153,14 +175,15 @@ enum Commands {
     /// Create or update a concept (never deletes). Server commits on its clone.
     #[command(after_help = "Examples:
   kbsync propose brain --file ./brain.md
-  kbsync propose brain --file -
-  cat brain.md | kbsync propose brain --file -
-  kbsync propose brain --file ./brain.md --dry-run
-  kbsync propose brain --file ./brain.md --json")]
+  kbsync propose ops/foo --file ./foo.md
+  kbsync propose ops/foo --file -
+  cat foo.md | kbsync propose ops/foo --file -
+  kbsync propose ops/foo --file ./foo.md --dry-run
+  kbsync propose ops/foo --file ./foo.md --json")]
     Propose {
-        /// Concept path
+        /// Concept path: brain, ops/foo, or concepts/ops/foo.md
         concept: Option<String>,
-        /// Markdown file, or `-` for stdin
+        /// Markdown file, or `-` for stdin (required)
         #[arg(short, long, value_name = "FILE")]
         file: Option<PathBuf>,
         /// Commit message title
@@ -170,7 +193,7 @@ enum Commands {
         #[arg(long)]
         push: bool,
         /// Agent identity for local mode. Ignored in server mode (token is identity).
-        #[arg(long, env = "KBSYNC_AGENT")]
+        #[arg(long, env = "KBSYNC_AGENT", hide_env_values = true)]
         agent: Option<String>,
         /// Validate path + frontmatter; do not write
         #[arg(long)]
@@ -190,6 +213,33 @@ enum Commands {
         /// Treat warnings as errors
         #[arg(long)]
         strict: bool,
+        /// Machine-readable JSON on stdout
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        server: ServerOpts,
+    },
+    /// Show the agent identity for this token (never prints the secret).
+    #[command(after_help = "Examples:
+  kbsync whoami
+  kbsync whoami --json
+  kbsync whoami --url http://127.0.0.1:7432 --token-file /path/to/agent.token")]
+    Whoami {
+        /// Machine-readable JSON on stdout
+        #[arg(long)]
+        json: bool,
+        /// If set, exit non-zero when this does not match the token agent
+        #[arg(long, env = "KBSYNC_AGENT", hide_env_values = true)]
+        agent: Option<String>,
+        #[command(flatten)]
+        server: ServerOpts,
+    },
+    /// Diagnose PATH, URL, token, concept count, git/push.
+    #[command(after_help = "Examples:
+  kbsync doctor
+  kbsync doctor --json
+  kbsync doctor --url http://127.0.0.1:7432 --token-file /path/to/agent.token")]
+    Doctor {
         /// Machine-readable JSON on stdout
         #[arg(long)]
         json: bool,
@@ -271,11 +321,15 @@ fn argv_hint() -> Option<String> {
         return None;
     }
     let hint = if has("get") {
-        "  kbsync get brain\n  kbsync list\n  kbsync get --help"
+        "  kbsync get brain\n  kbsync get ops/foo\n  kbsync list\n  kbsync get --help"
     } else if has("propose") {
-        "  kbsync propose brain --file ./brain.md\n  kbsync propose --help"
+        "  kbsync propose brain --file ./brain.md\n  kbsync propose ops/foo --file ./foo.md\n  kbsync propose --help"
     } else if has("search") {
-        "  kbsync search routing\n  kbsync list\n  kbsync search --help"
+        "  kbsync search routing\n  kbsync search shared brain\n  kbsync list\n  kbsync search --help"
+    } else if has("whoami") {
+        "  kbsync whoami\n  kbsync whoami --json\n  kbsync whoami --help"
+    } else if has("doctor") {
+        "  kbsync doctor\n  kbsync doctor --json\n  kbsync doctor --help"
     } else if has("list") {
         "  kbsync list\n  kbsync list --json\n  kbsync list --help"
     } else if has("create") && has("token") {
@@ -301,10 +355,10 @@ fn require_concept(concept: Option<String>, for_cmd: &str) -> Result<String> {
         Some(c) if !c.trim().is_empty() => Ok(c),
         _ => match for_cmd {
             "propose" => bail!(
-                "concept path required\n  kbsync propose brain --file ./brain.md\n  kbsync list\n  kbsync propose --help"
+                "concept path required\n  kbsync propose brain --file ./brain.md\n  kbsync propose ops/foo --file ./foo.md\n  kbsync list\n  kbsync propose --help"
             ),
             _ => bail!(
-                "concept path required\n  kbsync get brain\n  kbsync list\n  kbsync get --help"
+                "concept path required\n  kbsync get brain\n  kbsync get ops/foo\n  kbsync list\n  kbsync get --help"
             ),
         },
     }
@@ -342,14 +396,9 @@ fn main() -> Result<()> {
             json,
             server,
         } => {
-            let query = match query {
-                Some(q) if !q.trim().is_empty() => q,
-                _ => bail!(
-                    "search query required\n  kbsync search routing\n  kbsync list\n  kbsync search --help"
-                ),
-            };
+            let query = join_search_query(query)?;
             if let Some(r) = server.remote()? {
-                list::print_search_hits(&r.search_pages(&query)?.concepts, json)
+                list::print_search_hits(&r.search_pages(&query)?.concepts, &query, json)
             } else {
                 list::run_search(&root, &query, json)
             }
@@ -381,10 +430,9 @@ fn main() -> Result<()> {
             let markdown = read_propose_markdown(file.as_deref())?;
             if dry_run {
                 let rel = okf::validate_propose(&concept, &markdown)?;
-                let agent = if remote.is_some() {
-                    "token".to_string()
-                } else {
-                    config::default_agent(agent.as_deref())
+                let agent = match &remote {
+                    Some(r) => r.whoami()?.agent,
+                    None => config::default_agent(agent.as_deref()),
                 };
                 return propose::print_outcome(
                     &propose::Outcome {
@@ -439,7 +487,69 @@ fn main() -> Result<()> {
                 lint::run(&root, strict, json)
             }
         }
+        Commands::Whoami {
+            json,
+            agent,
+            server,
+        } => {
+            let Some(remote) = server.remote()? else {
+                bail!(
+                    "whoami needs a server\n  export KBSYNC_URL=http://127.0.0.1:7432\n  export KBSYNC_TOKEN=kbs_…\n  kbsync whoami --json"
+                );
+            };
+            let info = remote.whoami()?;
+            print_whoami(&remote.url, &remote.token, &info, json)?;
+            if let Some(expected) = agent.filter(|a| !a.trim().is_empty()) {
+                if expected != info.agent {
+                    bail!(
+                        "KBSYNC_AGENT='{expected}' does not match token agent '{}'\n  kbsync whoami --json",
+                        info.agent
+                    );
+                }
+            }
+            Ok(())
+        }
+        Commands::Doctor { json, server } => doctor::run(
+            &root,
+            json,
+            server.url.as_deref(),
+            server.token.as_deref(),
+            server.token_file.as_deref(),
+        ),
     }
+}
+
+fn join_search_query(parts: Vec<String>) -> Result<String> {
+    let q = parts.join(" ");
+    let q = q.trim();
+    if q.is_empty() {
+        bail!(
+            "search query required\n  kbsync search routing\n  kbsync search shared brain\n  kbsync list\n  kbsync search --help"
+        );
+    }
+    Ok(q.to_string())
+}
+
+fn print_whoami(url: &str, token: &str, info: &WhoamiResponse, json: bool) -> Result<()> {
+    let token_fingerprint = token::fingerprint(token);
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "ok": true,
+                "agent": info.agent,
+                "url": url,
+                "token_id": info.token_id,
+                "token_fingerprint": token_fingerprint,
+            })
+        );
+        return Ok(());
+    }
+    println!("agent:       {}", info.agent);
+    println!("url:         {url}");
+    println!("token_id:    {}", info.token_id);
+    println!("fingerprint: {token_fingerprint}");
+    Ok(())
 }
 
 fn read_propose_markdown(file: Option<&Path>) -> Result<String> {
@@ -451,14 +561,9 @@ fn read_propose_markdown(file: Option<&Path>) -> Result<String> {
                 p.display()
             )
         }),
-        None => {
-            if std::io::stdin().is_terminal() {
-                bail!(
-                    "markdown required\n  kbsync propose <concept> --file <path.md>\n  kbsync propose <concept> --file -\n  cat page.md | kbsync propose <concept> --file -"
-                );
-            }
-            read_stdin()
-        }
+        None => bail!(
+            "propose requires --file <path> or --file -\n  kbsync propose brain --file ./brain.md\n  kbsync propose ops/foo --file ./foo.md\n  cat page.md | kbsync propose brain --file -"
+        ),
     }
 }
 
@@ -497,9 +602,20 @@ fn token_cmd(root: &Path, cmd: TokenCmd) -> Result<()> {
                 println!("  token: {}", issued.token);
                 println!();
                 println!("Store this token; kbsync will not show it again.");
-                println!("Agent env:");
+                println!("Give each agent its own env (do not put the token in a shared team env):");
                 println!("  export KBSYNC_URL=http://127.0.0.1:7432");
                 println!("  export KBSYNC_TOKEN={}", issued.token);
+                println!("Or a chmod 600 file:");
+                println!(
+                    "  printf '%s\\n' '<token>' > /path/to/{}.token",
+                    issued.agent
+                );
+                println!("  chmod 600 /path/to/{}.token", issued.agent);
+                println!("  export KBSYNC_URL=http://127.0.0.1:7432");
+                println!(
+                    "  export KBSYNC_TOKEN_FILE=/path/to/{}.token",
+                    issued.agent
+                );
             }
             Ok(())
         }

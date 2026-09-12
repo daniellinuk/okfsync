@@ -28,6 +28,35 @@ pub struct ConceptResponse {
     /// Full document (frontmatter + body) for round-trip into propose.
     #[serde(default)]
     pub markdown: String,
+    #[serde(default)]
+    pub updated_by: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhoamiResponse {
+    pub ok: bool,
+    pub agent: String,
+    pub token_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DoctorResponse {
+    pub ok: bool,
+    pub version: String,
+    pub api: String,
+    pub agent: String,
+    pub token_id: String,
+    pub concepts: usize,
+    #[serde(default)]
+    pub by_type: std::collections::BTreeMap<String, usize>,
+    pub lint_errors: usize,
+    pub lint_warnings: usize,
+    pub git_repo: bool,
+    pub git_branch: Option<String>,
+    pub git_origin: bool,
+    pub tokens_active: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +75,8 @@ pub struct ProposeResponse {
     pub committed: bool,
     pub pushed: bool,
     pub message: String,
+    #[serde(default)]
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -63,6 +94,10 @@ pub struct ConceptSummary {
     pub title: Option<String>,
     pub description: Option<String>,
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub updated_by: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

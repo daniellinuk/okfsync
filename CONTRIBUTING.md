@@ -5,7 +5,7 @@ Short guide for humans and agents. Full agent playbook: [AGENTS.md](./AGENTS.md)
 ## Owner vs agent
 
 - **Owner** (has the data dir): `kbsync init`, `serve`, `token create|list|revoke`.
-- **Agents**: `KBSYNC_URL` + `KBSYNC_TOKEN`, then `get` / `propose --file` / `lint`.
+- **Agents**: `KBSYNC_URL` + `KBSYNC_TOKEN` (or `KBSYNC_TOKEN_FILE`), then `get` / `propose --file` / `whoami` / `doctor` / `lint`.
 - **Gardener**: not the CLI. Use git history / a remote checkout.
 
 ## PR rules

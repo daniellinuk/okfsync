@@ -18,6 +18,6 @@ okfsync is a CLI plus a local HTTP server around an OKF git working tree. Prefer
 - Unsafe git operations on propose/push
 - Supply-chain problems in the npm binary download path (`npm/lib/install.js`)
 
-Bearer tokens are capabilities. The owner should treat `kbsync token create` output like a password. `.okfsync/tokens.toml` stores hashes only.
+Bearer tokens are capabilities. The owner should treat `kbsync token create` output like a password. `.okfsync/tokens.toml` stores hashes only. `kbsync --help` must not interpolate `KBSYNC_TOKEN` values. `kbsync whoami` prints a fingerprint, never the secret.
 
 Agent working rules: [AGENTS.md](./AGENTS.md).

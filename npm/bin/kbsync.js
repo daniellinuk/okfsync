@@ -26,6 +26,7 @@ if (!bin) {
 const result = spawnSync(bin, process.argv.slice(2), {
   stdio: "inherit",
   env: process.env,
+  argv0: "kbsync",
 });
 
 if (result.error) {

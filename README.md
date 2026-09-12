@@ -13,7 +13,7 @@ The CLI is for **retrieve and propose**. It cannot delete. Gardening (merge dupe
 | Who | Runs | Needs |
 |-----|------|--------|
 | **KB owner** | `kbsync init`, `kbsync serve`, `kbsync token` | The data directory |
-| **Agent** | `list` `search` `get` `propose` `lint` | `KBSYNC_URL` + `KBSYNC_TOKEN` |
+| **Agent** | `list` `search` `get` `propose` `whoami` `doctor` `lint` | `KBSYNC_URL` + `KBSYNC_TOKEN` (or `KBSYNC_TOKEN_FILE`) |
 | **Gardener** | not the CLI | Git history / remote checkout — can delete or rewrite there |
 
 `/template` is a **demo seed**, not a production KB.
@@ -35,7 +35,7 @@ bun add -g okfsync
 kbsync --help
 ```
 
-`0.1.2` ships a **Linux x64** binary (`kbsync -V` matches the npm version). Other platforms: build from this repo (needs **rustc ≥ 1.88**):
+`0.1.3` ships a **Linux x64** binary (`kbsync -V` matches the npm version). Other platforms: build from this repo (needs **rustc ≥ 1.88**):
 
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml
@@ -49,7 +49,7 @@ kbsync --help
 - **Product:** wiki, not a PR factory. `propose` creates or overwrites one `concepts/**/*.md` file and commits. Last write wins; git still has the previous commit.
 - **Hard rule:** the CLI cannot delete knowledge (no `delete` command; HTTP DELETE is rejected).
 - **Hard rule:** agents do not clone or push the KB. They talk HTTP.
-- **Commands:** `init` / `serve` / `token` (owner); `list` `search` `get` `propose --file` `lint` (agents).
+- **Commands:** `init` / `serve` / `token` (owner); `list` `search` `get` `propose --file` `whoami` `doctor` `lint` (agents).
 
 ## Mental model
 
@@ -58,7 +58,7 @@ kbsync --help
 | `concepts/*.md` | OKF concepts on the **server disk** |
 | git in the data dir | History; optional `serve --push` to a remote |
 | `.okfsync/tokens.toml` | Hashed per-agent tokens (owner-only) |
-| `kbsync serve --bind …` | HTTP API (`/health`, `/v1/concepts`, `/v1/pages`, `/v1/proposals`, `/v1/lint`) |
+| `kbsync serve --bind …` | HTTP API (`/health`, `/v1/concepts`, `/v1/pages`, `/v1/proposals`, `/v1/lint`, `/v1/whoami`, `/v1/doctor`) |
 
 **Flow:** owner `init` + `token create` + `serve` → agent `get` → edit a local copy → `propose --file`.
 
@@ -80,11 +80,13 @@ kbsync --help
 |---------|-------------|
 | `kbsync list` | Paths + titles (no bodies) |
 | `kbsync search <query>` | Filter list by path/title/tags/body |
-| `kbsync get <concept>` | Read raw markdown |
-| `kbsync propose <concept> --file <md>` | Create or update one page (never deletes) |
+| `kbsync get <concept>` | Read raw markdown (`brain`, `ops/foo`, or `concepts/ops/foo.md`) |
+| `kbsync propose <concept> --file <md>` | Create or update one page (never deletes; `--file` required) |
+| `kbsync whoami` | Agent id, URL, token fingerprint (not the secret) |
+| `kbsync doctor` | Concept count, URL, token file, PATH, git/`pushed:false` |
 | `kbsync lint` | OKF frontmatter |
 
-`--url` / `KBSYNC_URL` and `--token` / `KBSYNC_TOKEN` select the server on agent commands only. Without them, `list`/`search`/`get`/`lint`/`propose` operate on `--root` (owner local mode).
+`--url` / `KBSYNC_URL` and `--token` / `KBSYNC_TOKEN` / `--token-file` / `KBSYNC_TOKEN_FILE` select the server on agent commands only. Without them, `list`/`search`/`get`/`lint`/`propose`/`doctor` operate on `--root` (owner local mode).
 
 `serve --push` / `--push-interval` optionally `git push` to `origin`. Hosting is the operator's choice.
 
@@ -92,13 +94,19 @@ kbsync --help
 
 ```bash
 export KBSYNC_URL=http://127.0.0.1:7432
-export KBSYNC_TOKEN=kbs_…          # from the owner
+export KBSYNC_TOKEN=kbs_…          # from the owner; per-agent, not a shared env
+# or: export KBSYNC_TOKEN_FILE=/path/to/agent.token   # chmod 600
 
+kbsync whoami
+kbsync doctor
 kbsync list
 kbsync search routing
+kbsync search shared brain
 kbsync get brain
+kbsync get ops/foo
 # stdout is the raw markdown (round-trips into propose)
 kbsync propose brain --file ./brain.md
+kbsync propose ops/foo --file ./foo.md
 kbsync lint
 ```
 
