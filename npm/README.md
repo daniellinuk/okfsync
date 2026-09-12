@@ -2,11 +2,14 @@
 
 Prebuilt binary wrapper for the **bagsy** CLI (includes `bagsy serve`).
 
+`bun add -g bagsy` / `npm i -g bagsy` / `pnpm add -g bagsy` only work after this package is published **and** GitHub Release assets exist for this version. Until then, build from the monorepo:
+
 ```bash
-bun add -g bagsy
-# or: npm i -g bagsy
-# or: pnpm add -g bagsy
+cargo build --release --manifest-path ../cli/Cargo.toml
+export PATH="$PWD/../cli/target/release:$PATH"
 ```
+
+This is not the PyPI package `bagsy` (ROS bags). Unrelated to npm `@bagsy/cli`.
 
 The package resolves a native binary via:
 
