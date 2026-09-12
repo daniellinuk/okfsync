@@ -9,6 +9,7 @@
   "files": [
     "bin/",
     "lib/",
+    "vendor/",
     "README.md"
   ],
   "scripts": {
@@ -20,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/okfsync-dev/okfsync.git",
+    "url": "git+https://github.com/daniellinuk/okfsync.git",
     "directory": "npm"
   },
   "keywords": [
