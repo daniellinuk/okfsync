@@ -1,6 +1,6 @@
 {
   "name": "okfsync",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A concept wiki so your agents don't clobber the brain. CLI command: kbsync.",
   "homepage": "https://github.com/daniellinuk/okfsync",
   "bugs": {
@@ -19,6 +19,8 @@
   "scripts": {
     "postinstall": "node ./lib/install.js",
     "prepare-binary": "node ./scripts/prepare-binary.js",
+    "check-vendor": "node ./scripts/check-vendor.js",
+    "prepublishOnly": "node ./scripts/check-vendor.js",
     "test": "node --test ./lib/install.test.js"
   },
   "engines": {

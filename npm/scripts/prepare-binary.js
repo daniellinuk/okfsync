@@ -41,6 +41,13 @@ function main() {
   const vendorDir = path.join(npmRoot, "vendor");
   fs.mkdirSync(vendorDir, { recursive: true });
   const dest = path.join(vendorDir, `okfsync-linux-x64-${version}`);
+  for (const name of fs.readdirSync(vendorDir)) {
+    const stale = path.join(vendorDir, name);
+    if (stale !== dest && fs.statSync(stale).isFile()) {
+      fs.unlinkSync(stale);
+      console.log(`removed stale ${stale}`);
+    }
+  }
   fs.copyFileSync(src, dest);
   fs.chmodSync(dest, 0o755);
   console.log(`wrote ${dest}`);

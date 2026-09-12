@@ -35,5 +35,5 @@ Publish npm (Linux x64 tarball; `kbsync -V` must match `npm/package.json`):
 ```bash
 # keep cli/Cargo.toml version == npm/package.json version
 node npm/scripts/prepare-binary.js
-cd npm && npm publish --access public
+cd npm && npm publish --access public   # prepublishOnly refuses a mismatched vendor/
 ```
