@@ -83,7 +83,9 @@ bagsy lint
 
 ## Install
 
-### From this monorepo (dev)
+### From this monorepo (works today)
+
+Needs a recent stable Rust. The current lockfile requires **rustc ≥ 1.88** (`rustup update stable`).
 
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml
@@ -91,16 +93,18 @@ export PATH="$PWD/cli/target/release:$PATH"
 bagsy --help
 ```
 
-### Via bun / npm / pnpm (prebuilt binary)
+### Via bun / npm / pnpm
 
-```bash
-bun add -g bagsy
-bagsy --help
-```
+Not published yet. `bun add -g bagsy` / `npm i -g bagsy` will not work until the `bagsy` package is on npmjs **and** GitHub Release binaries exist for this version. Until then, use the source build above.
+
+This is not the PyPI package `bagsy` (a ROS bag CLI). Do not `pip install bagsy`.
 
 ## Owner: local server
 
+`--root` must already exist:
+
 ```bash
+mkdir -p ./my-kb
 bagsy init --root ./my-kb
 bagsy token create --agent agent-a --root ./my-kb
 bagsy serve --root ./my-kb
