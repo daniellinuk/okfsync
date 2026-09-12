@@ -63,4 +63,12 @@ describe("resolve", () => {
     const m = toml.match(/^version = "([^"]+)"/m);
     assert.equal(m && m[1], packageVersion());
   });
+
+  it("does not treat a previous versioned vendor artifact as this release", () => {
+    const dest = vendorBinaryPath();
+    if (!dest) return;
+    const stale = dest.replace(packageVersion(), "0.0.0-stale");
+    assert.notEqual(dest, stale);
+    assert.ok(!candidatePaths().includes(stale));
+  });
 });
