@@ -13,7 +13,7 @@ const { resolveBinary, platformKey, PLATFORM_MAP } = require("./resolve");
 
 const RELEASE_BASE =
   process.env.KBSYNC_RELEASE_BASE ||
-  "https://github.com/okfsync-dev/okfsync/releases/download";
+  "https://github.com/daniellinuk/okfsync/releases/download";
 
 function log(msg) {
   if (process.env.KBSYNC_INSTALL_SILENT === "1") return;
