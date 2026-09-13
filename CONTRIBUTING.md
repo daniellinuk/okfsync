@@ -32,15 +32,26 @@ cargo clippy --manifest-path cli/Cargo.toml --all-targets -- -D warnings
 
 ## Release (all platforms)
 
-Tag a version that matches `cli/Cargo.toml` and `npm/package.json`. CI (`.github/workflows/release.yml`) builds five binaries — **macOS Apple Silicon**, macOS Intel, Linux x64, Linux ARM64, Windows x64 — attaches them to the GitHub Release, then publishes `okfsync-<platform>` packages and the `okfsync` meta-package.
+Do **not** commit `kbsync` binaries or cross-compile with MinGW/zig and `npm publish` those files. Linux must link **glibc ≤ 2.35** (Ubuntu 22.04). Windows must be **MSVC**. macOS must be a real Apple runner.
+
+Tag a version that matches `cli/Cargo.toml` and `npm/package.json`. Push the tag to **GitHub** so `.github/workflows/release.yml` runs (this workspace’s `origin` remote is Cursor; GitHub is `github`).
 
 ```bash
 # bump version in cli/Cargo.toml, npm/package.json, and the root package.json
-node npm/scripts/stamp-optional-deps.js   # optionalDependencies @ that version
+node npm/scripts/stamp-optional-deps.js
 git tag v0.1.5
-git push origin v0.1.5
+git push github v0.1.5
+# if origin is already github.com/daniellinuk/okfsync: git push origin v0.1.5
 ```
 
-Needs repo secrets: `NPM_TOKEN`. Pull requests and `workflow_dispatch` compile all five binaries and upload them as Actions artifacts; they do not publish. Tag `v*` to attach them to a GitHub Release and publish npm.
+Needs repo secret `NPM_TOKEN`. The workflow:
 
-Local Linux-only publish (legacy): `node npm/scripts/prepare-binary.js` then `cd npm && npm publish --access public`. `prepublishOnly` still refuses a mismatched vendor binary unless `OKFSYNC_RELEASE_PACK=1`.
+1. Linux x64 + ARM64 inside `ubuntu:22.04` (glibc 2.35), then fails the job if `objdump` shows a newer GLIBC.
+2. macOS Apple Silicon + Intel on `macos-latest`.
+3. Windows x64 on `windows-latest` (`x86_64-pc-windows-msvc`).
+4. Attaches all five to the GitHub Release.
+5. Publishes `okfsync-darwin-arm64` … then the `okfsync` meta-package (`OKFSYNC_RELEASE_PACK=1`).
+
+Pull requests that touch `cli/`, `npm/`, or this workflow compile the five binaries as artifacts; they do not publish.
+
+Local Linux-only experiment: `node npm/scripts/prepare-binary.js` (that host’s glibc, not for npm). `prepublishOnly` refuses a mismatched vendor binary unless `OKFSYNC_RELEASE_PACK=1`.

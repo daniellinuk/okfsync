@@ -45,7 +45,7 @@ kbsync --help
 | Linux | ARM64 | `okfsync-linux-arm64` | `okfsync-linux-arm64` |
 | Windows | x64 | `okfsync-windows-x64` | `okfsync-windows-x64.exe` |
 
-`0.1.4` still ships **Linux x64** only (in the tarball). The next tagged release (`v0.1.5+`) uploads all five assets and publishes the platform packages. Until then, other platforms build from this repo (needs **rustc ≥ 1.85**):
+`0.1.5` is the first release that publishes all five platform packages. Until `v0.1.5` is tagged on GitHub, `npm i -g okfsync` is Linux x64 only (or build from this repo; **rustc ≥ 1.85**):
 
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml

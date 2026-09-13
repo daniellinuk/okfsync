@@ -1,6 +1,6 @@
 {
   "name": "okfsync",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A concept wiki so your agents don't clobber the brain. CLI command: kbsync.",
   "homepage": "https://github.com/daniellinuk/okfsync",
   "bugs": {
@@ -23,7 +23,7 @@
     "stamp-optional-deps": "node ./scripts/stamp-optional-deps.js",
     "check-vendor": "node ./scripts/check-vendor.js",
     "prepublishOnly": "node ./scripts/check-vendor.js",
-    "test": "node --test ./lib/install.test.js ./lib/platforms.test.js ./scripts/pack-platforms.test.js"
+    "test": "node --test ./lib/install.test.js ./lib/platforms.test.js ./scripts/pack-platforms.test.js ./scripts/assert-max-glibc.test.js"
   },
   "engines": {
     "node": ">=18"
@@ -42,11 +42,11 @@
     "git"
   ],
   "optionalDependencies": {
-    "okfsync-darwin-arm64": "0.1.4",
-    "okfsync-darwin-x64": "0.1.4",
-    "okfsync-linux-x64": "0.1.4",
-    "okfsync-linux-arm64": "0.1.4",
-    "okfsync-windows-x64": "0.1.4"
+    "okfsync-darwin-arm64": "0.1.5",
+    "okfsync-darwin-x64": "0.1.5",
+    "okfsync-linux-x64": "0.1.5",
+    "okfsync-linux-arm64": "0.1.5",
+    "okfsync-windows-x64": "0.1.5"
   },
   "publishConfig": {
     "access": "public"

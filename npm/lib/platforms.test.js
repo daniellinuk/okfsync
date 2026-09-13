@@ -47,5 +47,9 @@ describe("platforms", () => {
     assert.ok(yml.includes("macos-latest"), "Apple runners");
     assert.ok(yml.includes("windows-latest"), "Windows runner");
     assert.ok(yml.includes("ubuntu-24.04-arm"), "Linux ARM runner");
+    assert.ok(yml.includes("container: ubuntu:22.04"), "Linux links glibc 2.35");
+    assert.ok(yml.includes("x86_64-pc-windows-msvc"), "Windows MSVC");
+    assert.ok(!yml.includes("windows-gnu"), "do not ship MinGW");
+    assert.ok(yml.includes("assert-max-glibc.js"), "glibc gate");
   });
 });
