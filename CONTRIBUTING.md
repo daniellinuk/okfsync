@@ -30,10 +30,17 @@ cargo build --release --manifest-path cli/Cargo.toml
 cargo clippy --manifest-path cli/Cargo.toml --all-targets -- -D warnings
 ```
 
-Publish npm (Linux x64 tarball; `kbsync -V` must match `npm/package.json`):
+## Release (all platforms)
+
+Tag a version that matches `cli/Cargo.toml` and `npm/package.json`. CI (`.github/workflows/release.yml`) builds five binaries — **macOS Apple Silicon**, macOS Intel, Linux x64, Linux ARM64, Windows x64 — attaches them to the GitHub Release, then publishes `okfsync-<platform>` packages and the `okfsync` meta-package.
 
 ```bash
-# keep cli/Cargo.toml version == npm/package.json version
-node npm/scripts/prepare-binary.js
-cd npm && npm publish --access public   # prepublishOnly refuses a mismatched vendor/
+# bump version in cli/Cargo.toml, npm/package.json, and the root package.json
+node npm/scripts/stamp-optional-deps.js   # optionalDependencies @ that version
+git tag v0.1.5
+git push origin v0.1.5
 ```
+
+Needs repo secrets: `NPM_TOKEN`. `workflow_dispatch` builds artifacts without publishing unless you check “Publish … to npm”.
+
+Local Linux-only publish (legacy): `node npm/scripts/prepare-binary.js` then `cd npm && npm publish --access public`. `prepublishOnly` still refuses a mismatched vendor binary unless `OKFSYNC_RELEASE_PACK=1`.

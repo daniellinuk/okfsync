@@ -19,9 +19,11 @@
   "scripts": {
     "postinstall": "node ./lib/install.js",
     "prepare-binary": "node ./scripts/prepare-binary.js",
+    "pack-platforms": "node ./scripts/pack-platforms.js",
+    "stamp-optional-deps": "node ./scripts/stamp-optional-deps.js",
     "check-vendor": "node ./scripts/check-vendor.js",
     "prepublishOnly": "node ./scripts/check-vendor.js",
-    "test": "node --test ./lib/install.test.js"
+    "test": "node --test ./lib/install.test.js ./lib/platforms.test.js ./scripts/pack-platforms.test.js"
   },
   "engines": {
     "node": ">=18"
@@ -39,7 +41,13 @@
     "cli",
     "git"
   ],
-  "optionalDependencies": {},
+  "optionalDependencies": {
+    "okfsync-darwin-arm64": "0.1.4",
+    "okfsync-darwin-x64": "0.1.4",
+    "okfsync-linux-x64": "0.1.4",
+    "okfsync-linux-arm64": "0.1.4",
+    "okfsync-windows-x64": "0.1.4"
+  },
   "publishConfig": {
     "access": "public"
   }

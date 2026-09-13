@@ -3,14 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-
-const PLATFORM_MAP = {
-  "darwin-arm64": "okfsync-darwin-arm64",
-  "darwin-x64": "okfsync-darwin-x64",
-  "linux-x64": "okfsync-linux-x64",
-  "linux-arm64": "okfsync-linux-arm64",
-  "win32-x64": "okfsync-windows-x64",
-};
+const { PLATFORM_MAP } = require("./platforms");
 
 function platformKey() {
   const plat = process.platform;
