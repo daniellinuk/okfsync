@@ -6,7 +6,7 @@
  *   node npm/scripts/assert-max-glibc.js ./kbsync [2.35]
  */
 
-const { execFileSync } = require("node:child_process");
+const { execFileSync } = require("child_process");
 
 function parseMax(text) {
   const re = /GLIBC_(\d+)\.(\d+)/g;
