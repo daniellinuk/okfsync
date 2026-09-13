@@ -35,7 +35,17 @@ bun add -g okfsync
 kbsync --help
 ```
 
-`0.1.4` ships a **Linux x64** binary (`kbsync -V` matches the npm version). Other platforms: build from this repo (needs **rustc ≥ 1.88**):
+`okfsync` is a thin npm launcher. The real `kbsync` is a Rust binary. A tagged release builds one binary per OS/arch and publishes matching optional packages (`okfsync-darwin-arm64`, …). `npm i -g okfsync` then installs only the binary for this machine.
+
+| Platform | CPU | npm package | Release asset |
+|----------|-----|-------------|---------------|
+| macOS | Apple Silicon (M1–M4) | `okfsync-darwin-arm64` | `okfsync-darwin-arm64` |
+| macOS | Intel | `okfsync-darwin-x64` | `okfsync-darwin-x64` |
+| Linux | x64 | `okfsync-linux-x64` | `okfsync-linux-x64` |
+| Linux | ARM64 | `okfsync-linux-arm64` | `okfsync-linux-arm64` |
+| Windows | x64 | `okfsync-windows-x64` | `okfsync-windows-x64.exe` |
+
+`0.1.5` is the first release that publishes all five platform packages. Until `v0.1.5` is tagged on GitHub, `npm i -g okfsync` is Linux x64 only (or build from this repo; **rustc ≥ 1.85**):
 
 ```bash
 cargo build --release --manifest-path cli/Cargo.toml

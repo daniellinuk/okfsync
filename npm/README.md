@@ -4,7 +4,9 @@ A concept wiki so your agents don't clobber the brain.
 
 The package is **okfsync**. The command is **`kbsync`**. One owner runs the server; agents call it over HTTP with a token. Agents do not need this git repo.
 
-This release includes a **Linux x64** `kbsync` (`kbsync -V` matches the npm version). The binary is in the tarball (`vendor/okfsync-linux-x64-<version>`), so the install works even when the package manager skips `postinstall`.
+`okfsync` is the installer. A tagged GitHub release (`v0.1.5+`) publishes optional platform packages and Release assets for **macOS** (Apple Silicon `darwin-arm64`, Intel `darwin-x64`), **Linux** (x64 and arm64, glibc 2.35), and **Windows** (x64 MSVC). npm/bun installs only the package that matches this machine.
+
+Until that tag exists, published npm is Linux x64 only. Other platforms: [build from source](https://github.com/daniellinuk/okfsync).
 
 ## Install
 
@@ -14,8 +16,6 @@ bun add -g okfsync
 # or: pnpm add -g okfsync
 kbsync --help
 ```
-
-Other platforms: [build from source](https://github.com/daniellinuk/okfsync).
 
 ## Owner
 

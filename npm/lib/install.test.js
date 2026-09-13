@@ -21,9 +21,12 @@ describe("resolve", () => {
     assert.ok(key.includes("-"));
   });
 
-  it("has known platform packages", () => {
+  it("has known platform packages including Apple", () => {
     assert.equal(PLATFORM_MAP["linux-x64"], "okfsync-linux-x64");
+    assert.equal(PLATFORM_MAP["linux-arm64"], "okfsync-linux-arm64");
     assert.equal(PLATFORM_MAP["darwin-arm64"], "okfsync-darwin-arm64");
+    assert.equal(PLATFORM_MAP["darwin-x64"], "okfsync-darwin-x64");
+    assert.equal(PLATFORM_MAP["win32-x64"], "okfsync-windows-x64");
   });
 
   it("vendor artifact includes package version", () => {

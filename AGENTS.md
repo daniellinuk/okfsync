@@ -40,7 +40,7 @@ Typical **worker** flow:
 ## Stack lock (do not invent alternatives)
 
 - **CLI + server:** Rust (`cli/`)
-- **Distribute:** npm package with prebuilds / binary resolution (`npm/`)
+- **Distribute:** npm meta-package `okfsync` + per-platform prebuilds (`okfsync-darwin-arm64` = Apple Silicon, `okfsync-darwin-x64` = Intel Mac, linux/windows) via optionalDependencies and GitHub Releases (`npm/`)
 - **Scripts / monorepo:** Bun
 - **No PyPI.** **No Node reimplementation** of okfsync.
 
