@@ -41,6 +41,6 @@ git tag v0.1.5
 git push origin v0.1.5
 ```
 
-Needs repo secrets: `NPM_TOKEN`. `workflow_dispatch` builds artifacts without publishing unless you check “Publish … to npm”.
+Needs repo secrets: `NPM_TOKEN`. Pull requests and `workflow_dispatch` compile all five binaries and upload them as Actions artifacts; they do not publish. Tag `v*` to attach them to a GitHub Release and publish npm.
 
 Local Linux-only publish (legacy): `node npm/scripts/prepare-binary.js` then `cd npm && npm publish --access public`. `prepublishOnly` still refuses a mismatched vendor binary unless `OKFSYNC_RELEASE_PACK=1`.
