@@ -97,7 +97,7 @@ jobs:
           node npm/scripts/assert-max-glibc.js "$src" 2.35
           cp "$src" "dist/${{ matrix.asset }}"
           chmod +x "dist/${{ matrix.asset }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
@@ -140,7 +140,7 @@ jobs:
           fi
           cp "$src" "dist/${{ matrix.asset }}"
           chmod +x "dist/${{ matrix.asset }}" || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
